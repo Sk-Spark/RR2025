@@ -7,6 +7,7 @@ This script tests the LEDController and LEDControlPlugin independently.
 import asyncio
 import sys
 import os
+import time
 
 # Add the current directory to path to import our modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -30,6 +31,10 @@ def test_led_controller():
     status = led_controller.get_status()
     print(f"LED status: {status}")
     
+    # Wait for 2 seconds to see LED on
+    print("Waiting 2 seconds with LED on...")
+    time.sleep(2)
+    
     # Test turn off
     print("Testing turn_off()...")
     result = led_controller.turn_off()
@@ -38,6 +43,10 @@ def test_led_controller():
     # Test status again
     status = led_controller.get_status()
     print(f"LED status after turn off: {status}")
+    
+    # Wait for 1 second to see LED off
+    print("Waiting 1 second with LED off...")
+    time.sleep(1)
     
     # Cleanup
     led_controller.cleanup()
@@ -62,9 +71,17 @@ def test_led_plugin():
     result = led_plugin.get_led_status()
     print(f"Plugin status result: {result}")
     
+    # Wait for 2 seconds to see LED on
+    print("Waiting 2 seconds with LED on...")
+    time.sleep(2)
+    
     print("Testing turn_led_off()...")
     result = led_plugin.turn_led_off()
     print(f"Plugin turn off result: {result}")
+    
+    # Wait for 1 second to see LED off
+    print("Waiting 1 second with LED off...")
+    time.sleep(1)
     
     # Cleanup
     led_controller.cleanup()

@@ -166,19 +166,19 @@ class OllamaLEDAgent:
         try:
             # Create a prompt that instructs the LLM to use the LED control functions
             prompt_template = """
-You are an AI assistant that controls an LED on a Raspberry Pi. You have access to the following functions:
-- turn_led_on: Turn the LED on
-- turn_led_off: Turn the LED off  
-- get_led_status: Get the current LED status
+                You are an AI assistant that controls an LED on a Raspberry Pi. You have access to the following functions:
+                - turn_led_on: Turn the LED on
+                - turn_led_off: Turn the LED off  
+                - get_led_status: Get the current LED status
 
-Analyze the user's request and call the appropriate function if they want to control the LED.
-If the user wants to turn on the LED (phrases like "turn on", "switch on", "light up", "activate"), call turn_led_on.
-If the user wants to turn off the LED (phrases like "turn off", "switch off", "turn it off", "deactivate"), call turn_led_off.
-If the user wants to know the status, call get_led_status.
-For any other requests, respond conversationally without calling functions.
+                Analyze the user's request and call the appropriate function if they want to control the LED.
+                If the user wants to turn on the LED (phrases like "turn on", "switch on", "light up", "activate"), call turn_led_on.
+                If the user wants to turn off the LED (phrases like "turn off", "switch off", "turn it off", "deactivate"), call turn_led_off.
+                If the user wants to know the status, call get_led_status.
+                For any other requests, respond conversationally without calling functions.
 
-User request: {{$user_input}}
-"""
+                User request: {{$user_input}}
+                """
             
             # Create function with template
             led_function = self.kernel.add_function(
