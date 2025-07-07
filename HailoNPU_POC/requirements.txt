@@ -1,0 +1,33 @@
+# Core dependencies for RPi AI Hat+ Object Detection
+# Flask web framework
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# Computer vision and image processing
+opencv-python==4.8.1.78
+numpy==1.24.3
+Pillow==10.0.1
+
+# Raspberry Pi camera support
+picamera2==0.3.12
+
+# heloRT library for Hailo AI Hat+ (install separately)
+# Note: heloRT should be installed from Hailo's official repository
+# pip install heloRT
+
+# Additional utilities
+python-dateutil==2.8.2
+pytz==2023.3
+
+# Optional: For enhanced performance
+numba==0.57.1
+
+# Optional: For logging and monitoring
+psutil==5.9.5
+
+# Optional: For configuration management
+PyYAML==6.0.1
+
+# Development dependencies (optional)
+pytest==7.4.2
+pytest-cov==4.1.0
