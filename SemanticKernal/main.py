@@ -164,39 +164,55 @@ class OllamaLEDAgent:
     async def process_command(self, user_input: str) -> str:
         """Process user command through Ollama and execute LED control if needed."""
         try:
-            # Create a prompt that instructs the LLM to use the LED control functions
-            prompt_template = """
-                You are an AI assistant that controls an LED on a Raspberry Pi. You have access to the following functions:
-                - turn_led_on: Turn the LED on
-                - turn_led_off: Turn the LED off  
-                - get_led_status: Get the current LED status
+            # Create a prompt that instructs the LLM to decide which function to call
+            prompt_template = """You are an AI assistant that controls an LED on a Raspberry Pi. 
+You have access to these LED control functions:
+- turn_led_on: Turn the LED on
+- turn_led_off: Turn the LED off  
+- get_led_status: Get the current LED status
 
-                Analyze the user's request and call the appropriate function if they want to control the LED.
-                If the user wants to turn on the LED (phrases like "turn on", "switch on", "light up", "activate"), call turn_led_on.
-                If the user wants to turn off the LED (phrases like "turn off", "switch off", "turn it off", "deactivate"), call turn_led_off.
-                If the user wants to know the status, call get_led_status.
-                For any other requests, respond conversationally without calling functions.
+Based on the user's request below, decide what action to take and respond with ONLY ONE of these:
+- If they want to turn on the LED: respond with exactly "CALL_FUNCTION:turn_led_on"
+- If they want to turn off the LED: respond with exactly "CALL_FUNCTION:turn_led_off"
+- If they want to check LED status: respond with exactly "CALL_FUNCTION:get_led_status"
+- For anything else: respond with a helpful conversational message
 
-                User request: {{$user_input}}
-                """
-            
-            # Create function with template
-            led_function = self.kernel.add_function(
-                plugin_name="main",
-                function_name="led_control_handler",
+User request: {{$user_input}}
+
+Your response:"""
+
+            # Create and invoke the function
+            decision_function = self.kernel.add_function(
+                plugin_name="decision",
+                function_name="decide_action",
                 prompt=prompt_template,
                 prompt_template_config=PromptTemplateConfig(
                     template=prompt_template,
-                    name="led_control_handler",
-                    description="Handle LED control commands"
+                    name="decide_action",
+                    description="Decide which LED function to call"
                 )
             )
             
-            # Execute the function
+            # Get the LLM's decision
             arguments = KernelArguments(user_input=user_input)
-            result = await self.kernel.invoke(led_function, arguments)
+            decision_result = await self.kernel.invoke(decision_function, arguments)
+            decision = str(decision_result).strip()
             
-            return str(result)
+            logger.info(f"LLM decision: {decision}")
+            
+            # Parse the decision and call the appropriate function
+            if "CALL_FUNCTION:turn_led_on" in decision:
+                logger.info("LLM decided to turn LED on")
+                return self.led_plugin.turn_led_on()
+            elif "CALL_FUNCTION:turn_led_off" in decision:
+                logger.info("LLM decided to turn LED off")
+                return self.led_plugin.turn_led_off()
+            elif "CALL_FUNCTION:get_led_status" in decision:
+                logger.info("LLM decided to get LED status")
+                return self.led_plugin.get_led_status()
+            else:
+                # Return the conversational response from the LLM
+                return decision
             
         except Exception as e:
             logger.error(f"Error processing command: {e}")
