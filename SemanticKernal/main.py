@@ -165,21 +165,21 @@ class OllamaLEDAgent:
         """Process user command through Ollama and execute LED control if needed."""
         try:
             # Create a prompt that instructs the LLM to decide which function to call
-            prompt_template = """You are an AI assistant that controls an LED on a Raspberry Pi. 
-You have access to these LED control functions:
-- turn_led_on: Turn the LED on
-- turn_led_off: Turn the LED off  
-- get_led_status: Get the current LED status
+            prompt_template = """You are an AI assistant that controls an LED on a Raspberry Pi 5. 
+                You have access to these LED control functions:
+                - turn_led_on: Turn the LED on
+                - turn_led_off: Turn the LED off  
+                - get_led_status: Get the current LED status
 
-Based on the user's request below, decide what action to take and respond with ONLY ONE of these:
-- If they want to turn on the LED: respond with exactly "CALL_FUNCTION:turn_led_on"
-- If they want to turn off the LED: respond with exactly "CALL_FUNCTION:turn_led_off"
-- If they want to check LED status: respond with exactly "CALL_FUNCTION:get_led_status"
-- For anything else: respond with a helpful conversational message
+                Based on the user's request below, decide what action to take and respond with ONLY ONE of these:
+                - If they want to turn on the LED: respond with exactly "CALL_FUNCTION:turn_led_on"
+                - If they want to turn off the LED: respond with exactly "CALL_FUNCTION:turn_led_off"
+                - If they want to check LED status: respond with exactly "CALL_FUNCTION:get_led_status"
+                - For anything else: respond with a helpful conversational message
 
-User request: {{$user_input}}
+                User request: {{$user_input}}
 
-Your response:"""
+                Your response:"""
 
             # Create and invoke the function
             decision_function = self.kernel.add_function(
@@ -251,7 +251,7 @@ async def main():
             try:
                 user_input = input("\n🔹 You: ").strip()
                 
-                if user_input.lower() in ['quit', 'exit', 'q']:
+                if user_input.lower() in ['quit', 'exit', 'q', 'bye']:
                     print("👋 Goodbye!")
                     break
                 
