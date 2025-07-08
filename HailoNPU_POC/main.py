@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Real-time Object Detection on Raspberry Pi 5 with RPi AI Hat+
-Uses heloRT library for hardware-accelerated inference with YOLOv8
+Uses Hailo NPU through picamera2 for hardware-accelerated inference
 Streams processed video with bounding boxes over Flask web interface
 """
 
@@ -12,7 +12,8 @@ import threading
 import cv2
 import numpy as np
 from flask import Flask, render_template, Response, jsonify
-from picamera2 import Picamera2
+from picamera2 import MappedArray, Picamera2
+from picamera2.devices import Hailo
 import json
 from datetime import datetime
 import logging
@@ -30,192 +31,181 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 try:
-    # Import hailo_platform for Hailo AI Hat+ acceleration
-    import hailo_platform.pyhailort as hailort
+    # Test Hailo availability by trying to import
+    from picamera2.devices import Hailo
     HAILO_AVAILABLE = True
-    logger.info("hailo_platform library imported successfully")
-except ImportError:
-    logger.warning("hailo_platform library not available, falling back to CPU inference")
+    logger.info("Hailo NPU available through picamera2")
+except ImportError as e:
+    logger.error(f"Hailo NPU not available: {e}")
     HAILO_AVAILABLE = False
+    sys.exit(1)  # Exit if Hailo is not available since this is required
 
-class ObjectDetector:
-    """Object detection class using YOLOv8 with optional Hailo acceleration"""
+def extract_detections(hailo_output, w, h, class_names, threshold=0.5):
+    """Extract detections from the HailoRT-postprocess output."""
+    results = []
+    for class_id, detections in enumerate(hailo_output):
+        for detection in detections:
+            score = detection[4]
+            if score >= threshold:
+                y0, x0, y1, x1 = detection[:4]
+                bbox = (int(x0 * w), int(y0 * h), int(x1 * w), int(y1 * h))
+                results.append({
+                    'class_name': class_names[class_id] if class_id < len(class_names) else 'unknown',
+                    'bbox': bbox,
+                    'confidence': float(score),
+                    'class_id': class_id
+                })
+    return results
+
+
+class HailoObjectDetector:
+    """Hailo-based object detector using picamera2"""
     
     def __init__(self, model_path=None, confidence_threshold=None):
         # Set default values from config
-        if model_path is None:
-            # Make path relative to the script directory
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            self.model_path = os.path.join(script_dir, config.MODEL_PATH)
-        else:
-            self.model_path = model_path
-            
+        self.model_path = model_path or self._get_default_model_path()
         self.confidence_threshold = confidence_threshold or config.CONFIDENCE_THRESHOLD
-        self.model = None
-        self.vdevice = None
-        self.network_group = None
-        self.input_shape = config.INPUT_SIZE
-        self.classes = self._load_coco_classes()
+        self.class_names = self._load_class_names()
+        self.hailo = None
+        self.model_w = None
+        self.model_h = None
         
-        # Use colors from config if available, otherwise generate random colors
-        if hasattr(config, 'DETECTION_COLORS') and config.DETECTION_COLORS:
-            # Extend colors if we have more classes than colors
-            colors = config.DETECTION_COLORS
-            while len(colors) < len(self.classes):
-                colors.extend(config.DETECTION_COLORS)
-            self.colors = colors[:len(self.classes)]
-        else:
-            self.colors = np.random.randint(0, 255, size=(len(self.classes), 3))
+        # Initialize colors for drawing
+        self.colors = self._generate_colors()
         
-        # Initialize the model
-        self._initialize_model()
+        logger.info(f"Initializing Hailo detector with model: {self.model_path}")
         
-    def _load_coco_classes(self):
-        """Load COCO dataset class names"""
-        return [
-            'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck',
-            'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench',
-            'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra',
-            'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
-            'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove',
-            'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
-            'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange',
-            'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
-            'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse',
-            'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
-            'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
-            'toothbrush'
+    def _get_default_model_path(self):
+        """Get the default model path"""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Try config first
+        if hasattr(config, 'MODEL_PATH') and config.MODEL_PATH:
+            model_path = os.path.join(script_dir, config.MODEL_PATH)
+            if os.path.exists(model_path):
+                return model_path
+        
+        # Try local resources directory first (priority order)
+        models_dir = os.path.join(script_dir, "resources", "models", "hailo8")
+        preferred_models = [
+            "yolov8m.hef",      # YOLOv8 medium - good balance of speed/accuracy
+            "yolov6n.hef",      # YOLOv6 nano - fastest
+            "yolov5m_seg.hef",  # YOLOv5 medium with segmentation
+            "yolov8m_pose.hef"  # YOLOv8 with pose estimation
         ]
+        
+        for model_name in preferred_models:
+            model_path = os.path.join(models_dir, model_name)
+            if os.path.exists(model_path):
+                logger.info(f"Using Hailo model: {model_name}")
+                return model_path
+        
+        # Try any .hef file in the models directory
+        if os.path.exists(models_dir):
+            for file in os.listdir(models_dir):
+                if file.endswith('.hef'):
+                    model_path = os.path.join(models_dir, file)
+                    logger.info(f"Using available Hailo model: {file}")
+                    return model_path
+        
+        # Try standard Hailo model location
+        default_path = "/usr/share/hailo-models/yolov8s_h8l.hef"
+        if os.path.exists(default_path):
+            return default_path
+            
+        logger.error("No Hailo model found!")
+        raise FileNotFoundError("Hailo model file not found")
+        
+    def _load_class_names(self):
+        """Load class names from labels file or use COCO classes"""
+        # Try to load from coco.txt file
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        labels_path = os.path.join(script_dir, "coco.txt")
+        
+        # if os.path.exists(labels_path):
+        #     try:
+        #         with open(labels_path, 'r', encoding="utf-8") as f:
+        #             return f.read().splitlines()
+        #     except Exception as e:
+        #         logger.warning(f"Could not load labels from {labels_path}: {e}")
+        
+        # Fallback to hardcoded COCO classes
+        return ['person','bottle', 'fan', 'pencil', 'book', 'laptop', 'mouse', 'keyboard']
     
-    def _initialize_model(self):
-        """Initialize the YOLOv8 model with Hailo acceleration if available"""
+    def _generate_colors(self):
+        """Generate colors for different classes"""
+        if hasattr(config, 'DETECTION_COLORS') and config.DETECTION_COLORS:
+            return config.DETECTION_COLORS
+        else:
+            # Generate random colors for each class
+            np.random.seed(42)  # For consistent colors
+            return np.random.randint(0, 255, size=(len(self.class_names), 3)).tolist()
+    
+    def initialize(self):
+        """Initialize the Hailo model"""
         try:
-            if HAILO_AVAILABLE and os.path.exists(self.model_path):
-                # Initialize Hailo model using HEF format
-                import hailo_platform
-                hef = hailo_platform.HEF(self.model_path)
-                # Create virtual device
-                vdevice = hailo_platform.VDevice()
-                # Configure the HEF
-                self.model = vdevice.configure(hef)[0]  # Get the first network group
-                logger.info(f"Hailo model loaded: {self.model_path}")
-            else:
-                # Fallback to OpenCV DNN for CPU inference
-                logger.info("Using OpenCV DNN for CPU inference")
-                self.model = self._load_opencv_model()
+            self.hailo = Hailo(self.model_path)
+            self.model_h, self.model_w, _ = self.hailo.get_input_shape()
+            logger.info(f"Hailo model initialized. Input shape: {self.model_w}x{self.model_h}")
+            return True
         except Exception as e:
-            logger.error(f"Failed to initialize model: {e}")
-            # Try to download and use a basic YOLOv8 model
-            self.model = self._load_opencv_model()
-    
-    def _load_opencv_model(self):
-        """Load YOLOv8 model using OpenCV DNN as fallback"""
-        try:
-            # For demonstration, we'll use a simple detection placeholder
-            # In production, you'd load an actual YOLOv8 ONNX model
-            logger.info("Loading OpenCV DNN model (fallback)")
-            return "opencv_fallback"
-        except Exception as e:
-            logger.error(f"Failed to load OpenCV model: {e}")
-            return None
-    
-    def preprocess_frame(self, frame):
-        """Preprocess frame for model input"""
-        # Resize frame to model input size
-        resized = cv2.resize(frame, self.input_shape)
-        # Normalize pixel values
-        normalized = resized.astype(np.float32) / 255.0
-        # Add batch dimension
-        input_tensor = np.expand_dims(normalized, axis=0)
-        return input_tensor
+            logger.error(f"Failed to initialize Hailo model: {e}")
+            return False
     
     def detect_objects(self, frame):
-        """Perform object detection on frame"""
-        if self.model is None:
+        """Run inference on a frame"""
+        if self.hailo is None:
+            logger.error("Hailo model not initialized")
             return []
-        
-        try:
-            # Preprocess frame
-            input_tensor = self.preprocess_frame(frame)
             
-            if HAILO_AVAILABLE and hasattr(self.model, 'run'):
-                # Run inference on Hailo NPU
-                outputs = self.model.run([input_tensor])  # Hailo expects list of inputs
-                detections = self._process_hailo_outputs(outputs, frame.shape)
-            else:
-                # Fallback detection (simplified for demonstration)
-                detections = self._mock_detection(frame)
+        try:
+            # Run inference
+            results = self.hailo.run(frame)
+            
+            # Extract detections - we need to get the original frame dimensions
+            # for proper scaling
+            h, w = frame.shape[:2] if len(frame.shape) > 2 else frame.shape
+            
+            detections = extract_detections(
+                results, w, h, self.class_names, self.confidence_threshold
+            )
             
             return detections
+            
         except Exception as e:
             logger.error(f"Detection error: {e}")
             return []
     
-    def _process_hailo_outputs(self, outputs, frame_shape):
-        """Process Hailo model outputs to extract bounding boxes"""
-        detections = []
-        
-        try:
-            # Process YOLOv8 outputs (this is a simplified version)
-            # In practice, you'd need to parse the actual model outputs
-            for output in outputs:
-                # Extract bounding boxes, confidence scores, and class IDs
-                # This is model-specific and depends on your YOLOv8 model format
-                boxes = output['boxes']  # [x1, y1, x2, y2]
-                scores = output['scores']
-                class_ids = output['class_ids']
-                
-                for box, score, class_id in zip(boxes, scores, class_ids):
-                    if score > self.confidence_threshold:
-                        x1, y1, x2, y2 = box
-                        # Scale coordinates to frame size
-                        x1 = int(x1 * frame_shape[1] / self.input_shape[1])
-                        y1 = int(y1 * frame_shape[0] / self.input_shape[0])
-                        x2 = int(x2 * frame_shape[1] / self.input_shape[1])
-                        y2 = int(y2 * frame_shape[0] / self.input_shape[0])
-                        
-                        detections.append({
-                            'bbox': [x1, y1, x2, y2],
-                            'confidence': float(score),
-                            'class_id': int(class_id),
-                            'class_name': self.classes[class_id] if class_id < len(self.classes) else 'unknown'
-                        })
-        except Exception as e:
-            logger.error(f"Error processing Hailo outputs: {e}")
-        
-        return detections
-    
-    def _mock_detection(self, frame):
-        """Mock detection for demonstration purposes"""
-        # This is a placeholder that returns a sample detection
-        # In practice, this would use actual model inference
-        detections = []
-        
-        # Add a mock detection occasionally
-        if np.random.random() > 0.7:  # 30% chance of detection
-            h, w = frame.shape[:2]
-            detections.append({
-                'bbox': [w//4, h//4, w//2, h//2],
-                'confidence': 0.85,
-                'class_id': 0,
-                'class_name': 'person'
-            })
-        
-        return detections
+    def cleanup(self):
+        """Clean up resources"""
+        if self.hailo:
+            # Hailo context manager should handle cleanup
+            pass
 
 class CameraStreamer:
-    """Camera streaming class for Raspberry Pi Camera Module 3"""
+    """Camera streaming class for Raspberry Pi Camera Module 3 with Hailo detection"""
     
     def __init__(self, resolution=None, framerate=None):
-        self.resolution = resolution or config.CAMERA_RESOLUTION
+        self.video_w = resolution[0] if resolution else config.CAMERA_RESOLUTION[0]
+        self.video_h = resolution[1] if resolution else config.CAMERA_RESOLUTION[1]
         self.framerate = framerate or config.CAMERA_FRAMERATE
         self.picam2 = None
         self.current_frame = None
         self.frame_lock = threading.Lock()
         self.running = False
         
-        # Initialize object detector
-        self.detector = ObjectDetector()
+        # Initialize Hailo object detector
+        self.detector = HailoObjectDetector()
+        if not self.detector.initialize():
+            logger.error("Failed to initialize Hailo detector")
+            raise RuntimeError("Hailo detector initialization failed")
+        
+        # Get model input size for low-res stream
+        self.model_w = self.detector.model_w
+        self.model_h = self.detector.model_h
+        
+        # Current detections for drawing
+        self.current_detections = []
         
         # Performance metrics
         self.fps_counter = 0
@@ -225,61 +215,31 @@ class CameraStreamer:
     def initialize_camera(self):
         """Initialize Raspberry Pi Camera Module 3"""
         try:
-            # Try picamera2 first
             self.picam2 = Picamera2()
             
-            # Configure camera
-            config = self.picam2.create_preview_configuration(
-                main={"size": self.resolution, "format": "RGB888"}
+            # Configure camera with main stream for display and lores for inference
+            main = {'size': (self.video_w, self.video_h), 'format': 'XRGB8888'}
+            lores = {'size': (self.model_w, self.model_h), 'format': 'RGB888'}
+            controls = {'FrameRate': self.framerate}
+            
+            config_cam = self.picam2.create_preview_configuration(
+                main, lores=lores, controls=controls
             )
-            self.picam2.configure(config)
+            self.picam2.configure(config_cam)
+            
+            # Set the drawing callback
+            self.picam2.pre_callback = self._draw_detections_callback
             
             # Start camera
             self.picam2.start()
-            # Wait for camera to initialize
-            time.sleep(1)
-            logger.info(f"Camera initialized with picamera2: {self.resolution} @ {self.framerate}fps")
+            time.sleep(1)  # Wait for camera to initialize
+            
+            logger.info(f"Camera initialized: main={self.video_w}x{self.video_h}, model={self.model_w}x{self.model_h}")
             return True
             
         except Exception as e:
-            logger.warning(f"Failed to initialize picamera2: {e}")
-            # Clean up picamera2 if it was partially initialized
-            try:
-                if hasattr(self, 'picam2') and self.picam2:
-                    if hasattr(self.picam2, 'stop'):
-                        self.picam2.stop()
-                    if hasattr(self.picam2, 'close'):
-                        self.picam2.close()
-            except:
-                pass
-            
-            # Try OpenCV fallback
-            try:
-                self.picam2 = cv2.VideoCapture(0)
-                if self.picam2.isOpened():
-                    # Test if we can actually read frames
-                    ret, test_frame = self.picam2.read()
-                    if ret and test_frame is not None:
-                        self.picam2.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
-                        self.picam2.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
-                        self.picam2.set(cv2.CAP_PROP_FPS, self.framerate)
-                        logger.info(f"Camera initialized with OpenCV: {self.resolution} @ {self.framerate}fps")
-                        return True
-                    else:
-                        logger.warning("OpenCV camera opened but cannot read frames")
-                        self.picam2.release()
-                        # Fall through to mock camera
-                else:
-                    logger.error("Failed to open camera with OpenCV")
-                    # Fall through to mock camera
-            except Exception as cv_e:
-                logger.error(f"Failed to initialize camera with OpenCV: {cv_e}")
-                # Fall through to mock camera
-            
-            # Use mock camera for testing
-            self.picam2 = "mock"
-            logger.info("Using mock camera for testing")
-            return True
+            logger.error(f"Failed to initialize camera: {e}")
+            return False
     
     def start_streaming(self):
         """Start the camera streaming thread"""
@@ -301,105 +261,78 @@ class CameraStreamer:
             self.stream_thread.join()
         
         if self.picam2:
-            if hasattr(self.picam2, 'stop'):  # picamera2
+            try:
                 self.picam2.stop()
                 self.picam2.close()
-            elif hasattr(self.picam2, 'release'):  # OpenCV
-                self.picam2.release()
+            except:
+                pass
+        
+        if self.detector:
+            self.detector.cleanup()
         
         logger.info("Camera streaming stopped")
     
     def _stream_loop(self):
-        """Main streaming loop"""
+        """Main streaming loop - processes low-res frames for inference"""
         while self.running:
             try:
-                # Capture frame based on camera type
-                frame = self._capture_frame()
+                # Capture low-resolution frame for inference
+                lores_frame = self.picam2.capture_array('lores')
                 
-                if frame is not None:
-                    # Perform object detection
-                    detections = self.detector.detect_objects(frame)
+                if lores_frame is not None:
+                    # Perform object detection on low-res frame
+                    detections = self.detector.detect_objects(lores_frame)
                     
-                    # Draw bounding boxes and labels
-                    annotated_frame = self._draw_detections(frame, detections)
-                    
-                    # Update current frame
+                    # Update current detections for drawing
                     with self.frame_lock:
-                        self.current_frame = annotated_frame
+                        self.current_detections = detections
                     
                     # Update FPS counter
                     self._update_fps()
                 
-                time.sleep(1/self.framerate)
+                # Small delay to prevent excessive CPU usage
+                time.sleep(0.01)
                 
             except Exception as e:
                 logger.error(f"Stream loop error: {e}")
                 time.sleep(0.1)
     
-    def _capture_frame(self):
-        """Capture frame from camera based on type"""
+    def _draw_detections_callback(self, request):
+        """Callback to draw detections on the main camera stream"""
         try:
-            if hasattr(self.picam2, 'capture_array'):  # picamera2
-                return self.picam2.capture_array()
-            elif hasattr(self.picam2, 'read'):  # OpenCV
-                ret, frame = self.picam2.read()
-                return frame if ret else None
-            elif self.picam2 == "mock":  # Mock camera
-                # Generate a test pattern
-                h, w = self.resolution[1], self.resolution[0]
-                frame = np.zeros((h, w, 3), dtype=np.uint8)
-                # Add some color pattern
-                frame[:h//3, :, 0] = 100  # Red section
-                frame[h//3:2*h//3, :, 1] = 100  # Green section
-                frame[2*h//3:, :, 2] = 100  # Blue section
-                # Add timestamp text
-                import datetime
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                cv2.putText(frame, f"Mock Camera - {timestamp}", (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-                return frame
-            else:
-                return None
+            with self.frame_lock:
+                current_detections = self.current_detections.copy()
+            
+            if current_detections:
+                with MappedArray(request, "main") as m:
+                    for detection in current_detections:
+                        class_name = detection['class_name']
+                        bbox = detection['bbox']
+                        confidence = detection['confidence']
+                        class_id = detection['class_id']
+                        
+                        x0, y0, x1, y1 = bbox
+                        
+                        # Get color for this class
+                        color_idx = class_id % len(self.detector.colors)
+                        color = self.detector.colors[color_idx]
+                        color = (int(color[2]), int(color[1]), int(color[0]), 255)  # BGRA format
+                        
+                        # Draw bounding box
+                        cv2.rectangle(m.array, (x0, y0), (x1, y1), color, 2)
+                        
+                        # Draw label
+                        label = f"{class_name} {int(confidence * 100)}%"
+                        cv2.putText(m.array, label, (x0 + 5, y0 + 15),
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
+                    
+                    # Draw FPS counter
+                    fps_text = f"FPS: {self.current_fps:.1f}"
+                    cv2.putText(m.array, fps_text, (10, 30), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0, 255), 2)
+                               
         except Exception as e:
-            logger.error(f"Frame capture error: {e}")
-            return None
-    
-    def _draw_detections(self, frame, detections):
-        """Draw bounding boxes and labels on frame"""
-        annotated_frame = frame.copy()
-        
-        for detection in detections:
-            bbox = detection['bbox']
-            confidence = detection['confidence']
-            class_name = detection['class_name']
-            class_id = detection['class_id']
-            
-            # Get color for this class
-            color = self.detector.colors[class_id % len(self.detector.colors)]
-            color = tuple(map(int, color))
-            
-            # Draw bounding box
-            x1, y1, x2, y2 = bbox
-            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
-            
-            # Draw label
-            label = f"{class_name}: {confidence:.2f}"
-            label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
-            
-            # Draw label background
-            cv2.rectangle(annotated_frame, (x1, y1 - label_size[1] - 10), 
-                         (x1 + label_size[0], y1), color, -1)
-            
-            # Draw label text
-            cv2.putText(annotated_frame, label, (x1, y1 - 5), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-        
-        # Draw FPS counter
-        fps_text = f"FPS: {self.current_fps:.1f}"
-        cv2.putText(annotated_frame, fps_text, (10, 30), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        
-        return annotated_frame
+            logger.error(f"Error drawing detections: {e}")
     
     def _update_fps(self):
         """Update FPS counter"""
@@ -411,10 +344,17 @@ class CameraStreamer:
             self.fps_start_time = current_time
     
     def get_frame(self):
-        """Get current frame for streaming"""
-        with self.frame_lock:
-            if self.current_frame is not None:
-                return self.current_frame.copy()
+        """Get current frame for web streaming"""
+        try:
+            # Capture the main stream frame
+            frame = self.picam2.capture_array('main')
+            if frame is not None:
+                # Convert XRGB8888 to RGB for JPEG encoding
+                if frame.shape[2] == 4:  # XRGB8888
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2RGB)
+                return frame
+        except Exception as e:
+            logger.error(f"Error getting frame: {e}")
         return None
 
 # Flask web application

@@ -2,7 +2,7 @@
 # Edit these values to customize the system behavior
 
 # Camera settings
-CAMERA_RESOLUTION = (640, 480)  # Width, Height
+CAMERA_RESOLUTION = (1280, 720)  # Width, Height - must be larger than model input size
 CAMERA_FRAMERATE = 30  # Frames per second
 CAMERA_ROTATION = 0  # Rotation in degrees (0, 90, 180, 270)
 
