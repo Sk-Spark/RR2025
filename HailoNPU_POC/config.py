@@ -7,7 +7,7 @@ CAMERA_FRAMERATE = 30  # Frames per second
 CAMERA_ROTATION = 0  # Rotation in degrees (0, 90, 180, 270)
 
 # Model settings
-MODEL_PATH = "yolov8n.hef"  # Path to Hailo model file
+MODEL_PATH = "resources/models/hailo8/yolov8m.hef"  # Path to Hailo model file
 CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence for detections
 NMS_THRESHOLD = 0.4  # Non-maximum suppression threshold
 INPUT_SIZE = (640, 640)  # Model input size
