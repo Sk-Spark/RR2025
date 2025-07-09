@@ -130,7 +130,20 @@ class HailoObjectDetector:
                 logger.warning(f"Could not load labels from {labels_path}: {e}")
         
         # Fallback to hardcoded COCO classes
-        return ['person','bottle', 'fan', 'pencil', 'book', 'laptop', 'mouse', 'keyboard']
+        return [
+            'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck',
+            'boat', 'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench',
+            'bird', 'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra',
+            'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee',
+            'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove',
+            'skateboard', 'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
+            'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange',
+            'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch',
+            'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse',
+            'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink',
+            'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier',
+            'toothbrush'
+        ]
     
     def _generate_colors(self):
         """Generate colors for different classes"""
@@ -300,7 +313,6 @@ class CameraStreamer:
     def _draw_detections_callback(self, request):
         """Callback to draw detections on the main camera stream"""
         try:
-            objectsDetected = []
             with self.frame_lock:
                 current_detections = self.current_detections.copy()
             
@@ -313,10 +325,12 @@ class CameraStreamer:
                         class_id = detection['class_id']
                         
                         x0, y0, x1, y1 = bbox
-                        x0 = x0*2
-                        y0 = y0*2
-                        x1 = x1*2
-                        y1 = y1*2
+                        
+                        x0 = x0 *2
+                        y0 = y0 *2
+                        x1 = x1 *2
+                        y1 = y1 *2
+                        
                         
                         # Get color for this class
                         color_idx = class_id % len(self.detector.colors)
@@ -324,11 +338,10 @@ class CameraStreamer:
                         color = (int(color[2]), int(color[1]), int(color[0]), 255)  # BGRA format
                         
                         # Draw bounding box
-                        cv2.rectangle(m.array, (x0 , y0), (x1, y1), color, 2)
+                        cv2.rectangle(m.array, (x0, y0), (x1, y1), color, 2)
                         
                         # Draw label
                         label = f"{class_name} {int(confidence * 100)}%"
-                        objectsDetected.append(label)
                         cv2.putText(m.array, label, (x0 + 5, y0 + 15),
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
                     
@@ -336,7 +349,6 @@ class CameraStreamer:
                     fps_text = f"FPS: {self.current_fps:.1f}"
                     cv2.putText(m.array, fps_text, (10, 30), 
                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0, 255), 2)
-                    print(f"Objects detected: {objectsDetected}\n")
                                
         except Exception as e:
             logger.error(f"Error drawing detections: {e}")
