@@ -2,15 +2,18 @@
 """
 LED Control Application
 Main application entry point for the Semantic Kernel LED Control with Ollama.
+Enhanced with orchestrator communication.
 """
 
 import asyncio
 import logging
 import sys
+import uuid
 from typing import Optional
 
 from config import ConfigManager
 from ollama_agent import OllamaLEDAgent
+from orchestrator_client import OrchestratorClient
 
 
 def setup_logging(config_manager: ConfigManager) -> None:
@@ -23,13 +26,16 @@ def setup_logging(config_manager: ConfigManager) -> None:
 
 
 class LEDControlApp:
-    """Main LED control application."""
+    """Main LED control application with orchestrator communication."""
     
     def __init__(self, config_manager: Optional[ConfigManager] = None):
         """Initialize the LED control application."""
         self.config_manager = config_manager or ConfigManager()
         self.agent: Optional[OllamaLEDAgent] = None
+        self.orchestrator_client: Optional[OrchestratorClient] = None
         self.logger = logging.getLogger(__name__)
+        self.agent_id = f"rpi_led_{uuid.uuid4().hex[:8]}"
+        self.is_interactive_mode = True
         
         # Set up logging
         setup_logging(self.config_manager)
@@ -55,6 +61,25 @@ class LEDControlApp:
                 self.logger.error("Failed to initialize agent")
                 return False
             
+            # Initialize orchestrator client if URL is provided
+            if config.orchestrator_url:
+                self.orchestrator_client = OrchestratorClient(
+                    orchestrator_url=config.orchestrator_url,
+                    agent_id=config.agent_id or self.agent_id,
+                    max_reconnect_attempts=config.max_reconnect_attempts,
+                    reconnect_delay=config.reconnect_delay
+                )
+                
+                # Register message handlers
+                self.setup_orchestrator_handlers()
+                
+                # Connect to orchestrator
+                if await self.orchestrator_client.connect():
+                    self.logger.info("Connected to orchestrator")
+                    self.is_interactive_mode = False  # Disable interactive mode when connected to orchestrator
+                else:
+                    self.logger.warning("Failed to connect to orchestrator, running in standalone mode")
+            
             self.logger.info("Application initialized successfully")
             return True
             
@@ -66,12 +91,20 @@ class LEDControlApp:
         """Print welcome message and usage instructions."""
         print("🤖 Semantic Kernel LED Control Agent")
         print("=" * 50)
-        print("Commands you can try:")
-        print("- 'turn on the LED' or 'switch on the light'")
-        print("- 'turn off the LED' or 'switch off the light'")
-        print("- 'what's the LED status?' or 'is the LED on?'")
-        print("- 'help' for more information")
-        print("- 'quit' or 'exit' to stop")
+        
+        config = self.config_manager.get_config()
+        if config.orchestrator_url:
+            print(f"🌐 Orchestrator Mode: {config.orchestrator_url}")
+            print(f"🆔 Agent ID: {config.agent_id or self.agent_id}")
+        else:
+            print("💻 Interactive Mode")
+            print("Commands you can try:")
+            print("- 'turn on the LED' or 'switch on the light'")
+            print("- 'turn off the LED' or 'switch off the light'")
+            print("- 'what's the LED status?' or 'is the LED on?'")
+            print("- 'help' for more information")
+            print("- 'quit' or 'exit' to stop")
+        
         print("=" * 50)
     
     async def run_interactive_loop(self) -> None:
@@ -135,17 +168,179 @@ class LEDControlApp:
                 print("❌ Failed to initialize agent. Please check Ollama is running and llama3.2:1b is available.")
                 return
             
-            await self.run_interactive_loop()
+            # Start periodic status updates if connected to orchestrator
+            if self.orchestrator_client and self.orchestrator_client.is_connected:
+                asyncio.create_task(self.send_periodic_status())
+                print("🌐 Connected to orchestrator - running in orchestrator mode")
+                print("   Agent will respond to orchestrator commands")
+                
+                # In orchestrator mode, just wait for commands
+                await self.run_orchestrator_mode()
+            else:
+                # Run in interactive mode
+                await self.run_interactive_loop()
             
         finally:
-            self.cleanup()
+            await self.cleanup()
     
-    def cleanup(self) -> None:
+    async def run_orchestrator_mode(self):
+        """Run in orchestrator mode - wait for commands."""
+        print("🔄 Agent is running and listening for orchestrator commands...")
+        print("   Press Ctrl+C to stop")
+        
+        try:
+            # Keep the application running while connected to orchestrator
+            while (self.orchestrator_client and 
+                   self.orchestrator_client.is_connected and
+                   self.orchestrator_client.should_reconnect):
+                await asyncio.sleep(1)
+                
+        except KeyboardInterrupt:
+            print("\n👋 Shutting down agent...")
+        except Exception as e:
+            self.logger.error(f"Error in orchestrator mode: {e}")
+            print(f"❌ Error in orchestrator mode: {e}")
+    
+    async def cleanup(self) -> None:
         """Clean up application resources."""
+        self.logger.info("Starting application cleanup...")
+        
+        # Disconnect from orchestrator
+        if self.orchestrator_client:
+            await self.orchestrator_client.disconnect()
+        
+        # Clean up agent
         if self.agent:
             self.agent.cleanup()
+        
         self.logger.info("Application cleanup completed")
-
+    
+    def setup_orchestrator_handlers(self):
+        """Setup message handlers for orchestrator communication."""
+        if not self.orchestrator_client:
+            return
+        
+        self.orchestrator_client.register_handler("command", self.handle_orchestrator_command)
+        self.orchestrator_client.register_handler("query", self.handle_orchestrator_query)
+        self.logger.info("Orchestrator message handlers registered")
+    
+    async def handle_orchestrator_command(self, data: dict):
+        """Handle command from orchestrator."""
+        try:
+            request_id = data.get("payload", {}).get("request_id")
+            command = data.get("payload", {}).get("command")
+            
+            self.logger.info(f"Received command from orchestrator: {command}")
+            
+            # Process command through agent
+            if self.agent:
+                response = await self.agent.process_command(command)
+                
+                # Get LED status for response data
+                led_status = "unknown"
+                if hasattr(self.agent, 'led_controller') and self.agent.led_controller:
+                    led_status = self.agent.led_controller.get_status()
+                
+                # Send response back to orchestrator
+                if self.orchestrator_client:
+                    await self.orchestrator_client.send_command_response(
+                        request_id=request_id,
+                        success=True,
+                        response=response,
+                        data={
+                            "led_status": led_status,
+                            "agent_id": self.agent_id
+                        }
+                    )
+            else:
+                if self.orchestrator_client:
+                    await self.orchestrator_client.send_command_response(
+                        request_id=request_id,
+                        success=False,
+                        error="Agent not initialized"
+                    )
+                
+        except Exception as e:
+            self.logger.error(f"Error handling orchestrator command: {e}")
+            if self.orchestrator_client:
+                await self.orchestrator_client.send_command_response(
+                    request_id=request_id,
+                    success=False,
+                    error=str(e)
+                )
+    
+    async def handle_orchestrator_query(self, data: dict):
+        """Handle query from orchestrator."""
+        try:
+            request_id = data.get("payload", {}).get("request_id")
+            query_type = data.get("payload", {}).get("query_type")
+            
+            response_data = {}
+            
+            if query_type == "status":
+                # Get LED status
+                led_status = "unknown"
+                if self.agent and hasattr(self.agent, 'led_controller') and self.agent.led_controller:
+                    led_status = self.agent.led_controller.get_status()
+                
+                response_data = {
+                    "led_status": led_status,
+                    "agent_status": "active",
+                    "capabilities": ["led_control", "status_monitoring", "natural_language_processing"],
+                    "agent_id": self.agent_id
+                }
+            elif query_type == "capabilities":
+                response_data = {
+                    "capabilities": ["led_control", "status_monitoring", "natural_language_processing"],
+                    "agent_type": "rpi_led_controller",
+                    "version": "1.0.0"
+                }
+            elif query_type == "stats":
+                stats = self.orchestrator_client.get_stats() if self.orchestrator_client else {}
+                response_data = {
+                    "connection_stats": stats,
+                    "agent_id": self.agent_id
+                }
+            
+            if self.orchestrator_client:
+                await self.orchestrator_client.send_command_response(
+                    request_id=request_id,
+                    success=True,
+                    data=response_data
+                )
+                
+        except Exception as e:
+            self.logger.error(f"Error handling orchestrator query: {e}")
+            if self.orchestrator_client:
+                await self.orchestrator_client.send_command_response(
+                    request_id=request_id,
+                    success=False,
+                    error=str(e)
+                )
+    
+    async def send_periodic_status(self):
+        """Send periodic status updates to orchestrator."""
+        while self.orchestrator_client and self.orchestrator_client.is_connected:
+            try:
+                led_status = "unknown"
+                additional_data = {}
+                
+                if self.agent and hasattr(self.agent, 'led_controller') and self.agent.led_controller:
+                    led_status = self.agent.led_controller.get_status()
+                
+                # Add system information
+                additional_data = {
+                    "agent_id": self.agent_id,
+                    "mode": "orchestrator" if not self.is_interactive_mode else "interactive",
+                    "timestamp": asyncio.get_event_loop().time()
+                }
+                
+                await self.orchestrator_client.send_status_update(led_status, additional_data)
+                await asyncio.sleep(60)  # Send status every 60 seconds
+                
+            except Exception as e:
+                self.logger.error(f"Error sending periodic status: {e}")
+                await asyncio.sleep(60)
 
 async def main() -> None:
     """Main entry point."""

@@ -20,6 +20,13 @@ class AppConfig:
     model_name: str = "llama3.2:1b"
     base_url: str = "http://localhost:11434"
     
+    # Orchestrator Configuration
+    orchestrator_url: Optional[str] = None  # Set to None by default for interactive mode
+    agent_id: Optional[str] = None
+    heartbeat_interval: int = 30
+    max_reconnect_attempts: int = -1  # -1 for unlimited
+    reconnect_delay: int = 5
+    
     # Logging Configuration
     log_level: str = "INFO"
     log_format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -35,6 +42,11 @@ class AppConfig:
             led_pin=int(os.getenv("LED_PIN", "18")),
             model_name=os.getenv("OLLAMA_MODEL", "llama3.2:1b"),
             base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            orchestrator_url=os.getenv("ORCHESTRATOR_URL"),  # e.g., "ws://orchestrator.local:8080/ws"
+            agent_id=os.getenv("AGENT_ID"),
+            heartbeat_interval=int(os.getenv("HEARTBEAT_INTERVAL", "30")),
+            max_reconnect_attempts=int(os.getenv("MAX_RECONNECT_ATTEMPTS", "-1")),
+            reconnect_delay=int(os.getenv("RECONNECT_DELAY", "5")),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             max_retries=int(os.getenv("MAX_RETRIES", "3")),
             timeout_seconds=int(os.getenv("TIMEOUT_SECONDS", "30"))
