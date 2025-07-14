@@ -22,7 +22,7 @@ class AppConfig:
     
     # Orchestrator Configuration
     orchestrator_url: Optional[str] = "ws://localhost:8080"  # Set to None by default for interactive mode
-    agent_id: Optional[str] = None
+    agent_id: Optional[str] = "rpi5_agent"
     heartbeat_interval: int = 30
     max_reconnect_attempts: int = -1  # -1 for unlimited
     reconnect_delay: int = 5

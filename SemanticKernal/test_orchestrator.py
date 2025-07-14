@@ -1,7 +1,8 @@
-#!/usr/bin/env python3
+#!/home/spark/RR2025/SemanticKernal/env/bin/python
 """
-Simple Test Orchestrator Server (Server Only)
-A basic WebSocket server for testing the RPi agent communication without interactive console.
+Interactive Test Orchestrator Server
+A WebSocket server for testing RPi agent communication with interactive command interface.
+Uses absolute path to virtual environment Python interpreter.
 """
 
 import asyncio
@@ -10,6 +11,7 @@ import logging
 import uuid
 import time
 import websockets
+import sys
 from typing import Dict, Set, Any
 
 # Configure logging
@@ -21,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 class SimpleOrchestrator:
-    """Simple test orchestrator for RPi agent communication."""
+    """Interactive test orchestrator for RPi agent communication."""
     
     def __init__(self, host: str = "localhost", port: int = 8080):
         """Initialize the test orchestrator."""
@@ -29,6 +31,9 @@ class SimpleOrchestrator:
         self.port = port
         self.connected_agents: Dict[str, Dict[str, Any]] = {}
         self.websockets: Dict[str, Any] = {}
+        self.agent_id = None  # Placeholder for agent ID, can be set during registration
+        self.command_queue = asyncio.Queue()
+        self.shutdown_event = asyncio.Event()
         
     async def register_agent(self, websocket: Any, agent_data: Dict[str, Any]):
         """Register a new agent."""
@@ -36,6 +41,8 @@ class SimpleOrchestrator:
         if not agent_id:
             logger.error("Agent registration missing agent_id")
             return
+        
+        self.agent_id = agent_id  # Store the agent ID for later use
         
         self.connected_agents[agent_id] = {
             "agent_id": agent_id,
@@ -51,6 +58,12 @@ class SimpleOrchestrator:
         
         logger.info(f"✅ Agent {agent_id} registered successfully")
         logger.info(f"🔧 Agent capabilities: {self.connected_agents[agent_id]['capabilities']}")
+        
+        # Notify user of new agent connection
+        print(f"\n🤖 New agent connected: {agent_id}")
+        print(f"   Type: {self.connected_agents[agent_id]['agent_type']}")
+        print(f"   Capabilities: {', '.join(self.connected_agents[agent_id]['capabilities']) if self.connected_agents[agent_id]['capabilities'] else 'None'}")
+        print("🎯 Command> ", end="", flush=True)
         
         # Send welcome message
         await self.send_to_agent(agent_id, {
@@ -102,10 +115,23 @@ class SimpleOrchestrator:
         success = payload.get("success")
         response = payload.get("response")
         
+        # Print response for user visibility
+        status_emoji = "✅" if success else "❌"
+        print(f"\n{status_emoji} Response from {agent_id}:")
+        print(f"   Request: {request_id}")
+        print(f"   Success: {success}")
+        print(f"   Response: {response}")
+        
+        if payload.get("data"):
+            print(f"   Data: {payload['data']}")
+        
         logger.info(f"📋 Agent {agent_id} response to {request_id}: {response} (success: {success})")
         
         if payload.get("data"):
             logger.info(f"📊 Response data: {payload['data']}")
+        
+        # Show command prompt again
+        print("🎯 Command> ", end="", flush=True)
     
     def handle_status_update(self, data: Dict[str, Any]):
         """Handle status update from agent."""
@@ -117,7 +143,12 @@ class SimpleOrchestrator:
             self.connected_agents[agent_id]["led_status"] = led_status
             self.connected_agents[agent_id]["last_status_update"] = time.time()
         
+        # Show status update to user
+        print(f"\n🔄 Status Update from {agent_id}: LED={led_status}")
         logger.info(f"🔄 Agent {agent_id} status update - LED: {led_status}")
+        
+        # Show command prompt again
+        print("🎯 Command> ", end="", flush=True)
     
     def handle_heartbeat(self, data: Dict[str, Any]):
         """Handle heartbeat from agent."""
@@ -142,6 +173,152 @@ class SimpleOrchestrator:
         except Exception as e:
             logger.error(f"❌ Failed to send message to {agent_id}: {e}")
             return False
+    
+    async def send_command_to_agent(self, agent_id: str, command: str, parameters: Dict[str, Any] = None):
+        """Send a command to a specific agent."""
+        if agent_id not in self.websockets:
+            print(f"❌ Agent {agent_id} not connected")
+            return False
+        
+        request_id = str(uuid.uuid4())
+        message = {
+            "message_type": "command",
+            "agent_id": "orchestrator",
+            "request_id": request_id,
+            "payload": {
+                "command": command +" "+ parameters.get("action", ""),
+                "parameters": parameters or {},
+                "timestamp": time.time()
+            }
+        }
+        
+        success = await self.send_to_agent(agent_id, message)
+        if success:
+            print(f"✅ Command '{command}' sent to agent {agent_id} with parameters {parameters}")
+        return success
+    
+    def list_connected_agents(self):
+        """List all connected agents."""
+        if not self.connected_agents:
+            print("📭 No agents currently connected")
+            return
+        
+        print("\n🤖 Connected Agents:")
+        print("-" * 50)
+        for agent_id, info in self.connected_agents.items():
+            connection_time = time.strftime("%H:%M:%S", time.localtime(info["connection_time"]))
+            capabilities = ", ".join(info["capabilities"]) if info["capabilities"] else "None"
+            print(f"Agent ID: {agent_id}")
+            print(f"  Type: {info['agent_type']}")
+            print(f"  Location: {info['location']}")
+            print(f"  Connected: {connection_time}")
+            print(f"  Capabilities: {capabilities}")
+            print(f"  Status: {info['status']}")
+            print()
+    
+    def show_help(self):
+        """Show available commands."""
+        print("\n🔧 Available Commands:")
+        print("-" * 50)
+        print("help                     - Show this help message")
+        print("list                     - List connected agents")
+        print("cmd <agent_id> <command> - Send command to agent")
+        print("led <agent_id> <action>  - Control LED (on/off/blink)")
+        print("status <agent_id>        - Get agent status")
+        print("ping <agent_id>          - Ping agent")
+        print("quit                     - Shutdown orchestrator")
+        print("\nExample commands:")
+        print("  cmd rpi_agent_01 get_system_info")
+        print("  led rpi_agent_01 on")
+        print("  status rpi_agent_01")
+        print()
+    
+    async def process_user_command(self, user_input: str):
+        """Process user command input."""
+        parts = user_input.strip().split()
+        if not parts:
+            return
+        
+        command = parts[0].lower()
+        
+        if command == "help" or command == "h":
+            self.show_help()
+            
+        elif command == "list" or command == "l":
+            self.list_connected_agents()
+            
+        elif command == "quit" or command == "q" or command == "exit":
+            print("👋 Shutting down orchestrator...")
+            self.shutdown_event.set()
+            
+        elif command == "cmd" and len(parts) >= 3:
+            agent_id = parts[1]
+            cmd = parts[2]
+            parameters = {}
+            if len(parts) > 3:
+                # Join remaining parts as parameters
+                param_str = " ".join(parts[3:])
+                try:
+                    parameters = {"args": param_str}
+                except:
+                    parameters = {"args": param_str}
+            
+            await self.send_command_to_agent(agent_id, cmd, parameters)
+            
+        elif command == "led" and len(parts) >= 3:
+            agent_id = parts[1]
+            action = parts[2].lower()
+            if action in ["on", "off", "blink"]:
+                await self.send_command_to_agent(agent_id, "led_control", {"action": action})
+            else:
+                print("❌ LED action must be: on, off, or blink")
+                
+        elif command == "status" and len(parts) >= 2:
+            agent_id = parts[1]
+            await self.send_command_to_agent(agent_id, "get_status")
+            
+        elif command == "ping" and len(parts) >= 2:
+            agent_id = parts[1]
+            await self.send_command_to_agent(agent_id, "ping")
+            
+        else:
+            print("❓ Unknown command. Type 'help' for available commands.")
+    
+    async def user_input_handler(self):
+        """Handle user input in a separate task."""
+        print("\n" + "="*60)
+        print("🎮 INTERACTIVE ORCHESTRATOR CONSOLE")
+        print("="*60)
+        print("Type 'help' for available commands")
+        print("Type 'quit' to shutdown")
+        print("-"*60)
+        
+        while not self.shutdown_event.is_set():
+            try:
+                # Use asyncio to handle input without blocking
+                print("\n🎯 Command> ", end="", flush=True)
+                
+                # Read input in a non-blocking way
+                loop = asyncio.get_event_loop()
+                user_input = await loop.run_in_executor(None, sys.stdin.readline)
+                
+                if user_input:
+                    await self.process_user_command(user_input.strip())
+                
+                # Small delay to prevent busy waiting
+                await asyncio.sleep(0.1)
+                
+            except EOFError:
+                print("\n👋 EOF received, shutting down...")
+                self.shutdown_event.set()
+                break
+            except KeyboardInterrupt:
+                print("\n👋 Keyboard interrupt received, shutting down...")
+                self.shutdown_event.set()
+                break
+            except Exception as e:
+                logger.error(f"❌ Error in user input handler: {e}")
+                await asyncio.sleep(1)
     
     async def handle_client(self, websocket: Any):
         """Handle WebSocket client connection."""
@@ -170,20 +347,30 @@ class SimpleOrchestrator:
                 logger.info(f"🗑️  Agent {agent_to_remove} disconnected and removed")
     
     async def start_server(self):
-        """Start the WebSocket server."""
+        """Start the WebSocket server and user input handler."""
         logger.info(f"🚀 Starting orchestrator server on {self.host}:{self.port}")
         
-        async with websockets.serve(self.handle_client, self.host, self.port):
-            logger.info(f"🌐 Orchestrator server running on ws://{self.host}:{self.port}")
-            logger.info("⏳ Waiting for RPi agents to connect...")
-            logger.info("💡 Press Ctrl+C to stop the server")
+        # Create server
+        server = await websockets.serve(self.handle_client, self.host, self.port)
+        logger.info(f"🌐 Orchestrator server running on ws://{self.host}:{self.port}")
+        logger.info("⏳ Waiting for RPi agents to connect...")
+        
+        # Start user input handler
+        input_task = asyncio.create_task(self.user_input_handler())
+        
+        try:
+            # Wait for shutdown event
+            await self.shutdown_event.wait()
             
-            # Keep server running until cancelled
-            try:
-                await asyncio.Future()  # Run forever
-            except asyncio.CancelledError:
-                logger.info("🛑 Server shutdown requested")
-                raise
+        except asyncio.CancelledError:
+            logger.info("🛑 Server shutdown requested")
+            raise
+        finally:
+            # Clean shutdown
+            input_task.cancel()
+            server.close()
+            await server.wait_closed()
+            logger.info("🔌 Server closed")
 
 
 async def main():
@@ -191,7 +378,8 @@ async def main():
     orchestrator = SimpleOrchestrator()
     
     try:
-        await orchestrator.start_server()
+        await orchestrator.start_server()   
+        
     except KeyboardInterrupt:
         logger.info("🔄 Received keyboard interrupt")
         print("\n👋 Shutting down orchestrator...")
@@ -202,6 +390,8 @@ async def main():
         logger.error(f"❌ Unexpected error: {e}")
         print(f"\n💥 Error occurred: {e}")
     finally:
+        # Ensure shutdown event is set
+        orchestrator.shutdown_event.set()
         logger.info("✅ Orchestrator shutdown complete")
 
 
