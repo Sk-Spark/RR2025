@@ -50,7 +50,7 @@ class LEDControlApp:
             
             config = self.config_manager.get_config()
             
-            # Initialize the agent
+            # Creating the agent
             self.agent = OllamaLEDAgent(
                 model_name=config.model_name,
                 base_url=config.base_url
@@ -141,21 +141,21 @@ class LEDControlApp:
     def print_help(self) -> None:
         """Print help information."""
         help_text = """
-🔧 LED Control Commands:
-• "turn on the LED" - Turn the LED on
-• "turn off the LED" - Turn the LED off
-• "LED status" - Check current LED status
-• "switch on the light" - Alternative turn on command
-• "switch off the light" - Alternative turn off command
+            🔧 LED Control Commands:
+            • "turn on the LED" - Turn the LED on
+            • "turn off the LED" - Turn the LED off
+            • "LED status" - Check current LED status
+            • "switch on the light" - Alternative turn on command
+            • "switch off the light" - Alternative turn off command
 
-💬 Other Commands:
-• "help" - Show this help message
-• "quit" or "exit" - Exit the application
+            💬 Other Commands:
+            • "help" - Show this help message
+            • "quit" or "exit" - Exit the application
 
-🎯 Tips:
-• Use natural language - the AI understands various phrasings
-• Be specific about LED/light in your commands
-• The AI will respond conversationally for other topics
+            🎯 Tips:
+            • Use natural language - the AI understands various phrasings
+            • Be specific about LED/light in your commands
+            • The AI will respond conversationally for other topics
         """
         print(help_text)
     
@@ -220,9 +220,19 @@ class LEDControlApp:
         if not self.orchestrator_client:
             return
         
+        self.orchestrator_client.register_handler("welcome", self.handle_orchestrator_welcome)
         self.orchestrator_client.register_handler("command", self.handle_orchestrator_command)
         self.orchestrator_client.register_handler("query", self.handle_orchestrator_query)
         self.logger.info("Orchestrator message handlers registered")
+    
+    async def handle_orchestrator_welcome(self, message: dict):
+        """Handle welcome message from orchestrator."""
+        try:
+            self.logger.info(f"Received welcome message: {message}")
+            if self.orchestrator_client:
+                await self.orchestrator_client.send_status_update("Agent initialized and ready")
+        except Exception as e:
+            self.logger.error(f"Error handling welcome message: {e}")
     
     async def handle_orchestrator_command(self, data: dict):
         """Handle command from orchestrator."""

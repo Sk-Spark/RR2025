@@ -176,9 +176,14 @@ class SimpleOrchestrator:
         async with websockets.serve(self.handle_client, self.host, self.port):
             logger.info(f"🌐 Orchestrator server running on ws://{self.host}:{self.port}")
             logger.info("⏳ Waiting for RPi agents to connect...")
+            logger.info("💡 Press Ctrl+C to stop the server")
             
-            # Keep server running
-            await asyncio.Future()  # Run forever
+            # Keep server running until cancelled
+            try:
+                await asyncio.Future()  # Run forever
+            except asyncio.CancelledError:
+                logger.info("🛑 Server shutdown requested")
+                raise
 
 
 async def main():
@@ -188,7 +193,16 @@ async def main():
     try:
         await orchestrator.start_server()
     except KeyboardInterrupt:
+        logger.info("🔄 Received keyboard interrupt")
         print("\n👋 Shutting down orchestrator...")
+    except asyncio.CancelledError:
+        logger.info("🔄 Server task was cancelled")
+        print("\n👋 Shutting down orchestrator...")
+    except Exception as e:
+        logger.error(f"❌ Unexpected error: {e}")
+        print(f"\n💥 Error occurred: {e}")
+    finally:
+        logger.info("✅ Orchestrator shutdown complete")
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ class AppConfig:
     base_url: str = "http://localhost:11434"
     
     # Orchestrator Configuration
-    orchestrator_url: Optional[str] = None  # Set to None by default for interactive mode
+    orchestrator_url: Optional[str] = "ws://localhost:8080"  # Set to None by default for interactive mode
     agent_id: Optional[str] = None
     heartbeat_interval: int = 30
     max_reconnect_attempts: int = -1  # -1 for unlimited
@@ -38,18 +38,20 @@ class AppConfig:
     @classmethod
     def from_env(cls) -> "AppConfig":
         """Create configuration from environment variables."""
+        
         return cls(
-            led_pin=int(os.getenv("LED_PIN", "18")),
-            model_name=os.getenv("OLLAMA_MODEL", "llama3.2:1b"),
-            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-            orchestrator_url=os.getenv("ORCHESTRATOR_URL"),  # e.g., "ws://orchestrator.local:8080/ws"
-            agent_id=os.getenv("AGENT_ID"),
-            heartbeat_interval=int(os.getenv("HEARTBEAT_INTERVAL", "30")),
-            max_reconnect_attempts=int(os.getenv("MAX_RECONNECT_ATTEMPTS", "-1")),
-            reconnect_delay=int(os.getenv("RECONNECT_DELAY", "5")),
-            log_level=os.getenv("LOG_LEVEL", "INFO"),
-            max_retries=int(os.getenv("MAX_RETRIES", "3")),
-            timeout_seconds=int(os.getenv("TIMEOUT_SECONDS", "30"))
+            led_pin=cls.led_pin if cls.led_pin is not None else int(os.getenv("LED_PIN", "18")),
+            model_name=cls.model_name if cls.model_name is not None else os.getenv("OLLAMA_MODEL", "llama3.2:1b"),
+            base_url=cls.base_url if cls.base_url is not None else os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            orchestrator_url=cls.orchestrator_url if cls.orchestrator_url is not None else os.getenv("ORCHESTRATOR_URL"),
+            agent_id=cls.agent_id if cls.agent_id is not None else os.getenv("AGENT_ID"),
+            heartbeat_interval=cls.heartbeat_interval if cls.heartbeat_interval is not None else int(os.getenv("HEARTBEAT_INTERVAL", "30")),
+            max_reconnect_attempts=cls.max_reconnect_attempts if cls.max_reconnect_attempts is not None else int(os.getenv("MAX_RECONNECT_ATTEMPTS", "-1")),
+            reconnect_delay=cls.reconnect_delay if cls.reconnect_delay is not None else int(os.getenv("RECONNECT_DELAY", "5")),
+            log_level=cls.log_level if cls.log_level is not None else os.getenv("LOG_LEVEL", "INFO"),
+            log_format=cls.log_format if cls.log_format is not None else os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
+            max_retries=cls.max_retries if cls.max_retries is not None else int(os.getenv("MAX_RETRIES", "3")),
+            timeout_seconds=cls.timeout_seconds if cls.timeout_seconds is not None else int(os.getenv("TIMEOUT_SECONDS", "30")),
         )
 
 
