@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Simple Test Orchestrator Server
-A basic WebSocket server for testing the RPi agent communication.
+Simple Test Orchestrator Server (Server Only)
+A basic WebSocket server for testing the RPi agent communication without interactive console.
 """
 
 import asyncio
@@ -20,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class TestOrchestrator:
+class SimpleOrchestrator:
     """Simple test orchestrator for RPi agent communication."""
     
     def __init__(self, host: str = "localhost", port: int = 8080):
@@ -49,15 +49,15 @@ class TestOrchestrator:
         
         self.websockets[agent_id] = websocket
         
-        logger.info(f"Agent {agent_id} registered successfully")
-        logger.info(f"Agent capabilities: {self.connected_agents[agent_id]['capabilities']}")
+        logger.info(f"✅ Agent {agent_id} registered successfully")
+        logger.info(f"🔧 Agent capabilities: {self.connected_agents[agent_id]['capabilities']}")
         
         # Send welcome message
         await self.send_to_agent(agent_id, {
             "message_type": "welcome",
             "payload": {
                 "message": "Successfully registered with orchestrator",
-                "orchestrator_id": "test_orchestrator",
+                "orchestrator_id": "simple_orchestrator",
                 "timestamp": time.time()
             }
         })
@@ -69,7 +69,7 @@ class TestOrchestrator:
             message_type = data.get("message_type")
             agent_id = data.get("agent_id")
             
-            logger.info(f"Received {message_type} from {agent_id}")
+            logger.info(f"📨 Received {message_type} from {agent_id}")
             
             if message_type == "register":
                 await self.register_agent(websocket, data)
@@ -84,15 +84,15 @@ class TestOrchestrator:
                 self.handle_heartbeat(data)
                 
             elif message_type == "pong":
-                logger.debug(f"Received pong from {agent_id}")
+                logger.debug(f"🏓 Received pong from {agent_id}")
                 
             else:
-                logger.warning(f"Unknown message type: {message_type}")
+                logger.warning(f"❓ Unknown message type: {message_type}")
                 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to decode message: {e}")
+            logger.error(f"❌ Failed to decode message: {e}")
         except Exception as e:
-            logger.error(f"Error handling message: {e}")
+            logger.error(f"❌ Error handling message: {e}")
     
     def handle_response(self, data: Dict[str, Any]):
         """Handle response from agent."""
@@ -102,10 +102,10 @@ class TestOrchestrator:
         success = payload.get("success")
         response = payload.get("response")
         
-        logger.info(f"Agent {agent_id} response to {request_id}: {response} (success: {success})")
+        logger.info(f"📋 Agent {agent_id} response to {request_id}: {response} (success: {success})")
         
         if payload.get("data"):
-            logger.info(f"Response data: {payload['data']}")
+            logger.info(f"📊 Response data: {payload['data']}")
     
     def handle_status_update(self, data: Dict[str, Any]):
         """Handle status update from agent."""
@@ -117,7 +117,7 @@ class TestOrchestrator:
             self.connected_agents[agent_id]["led_status"] = led_status
             self.connected_agents[agent_id]["last_status_update"] = time.time()
         
-        logger.info(f"Agent {agent_id} status update - LED: {led_status}")
+        logger.info(f"🔄 Agent {agent_id} status update - LED: {led_status}")
     
     def handle_heartbeat(self, data: Dict[str, Any]):
         """Handle heartbeat from agent."""
@@ -126,91 +126,35 @@ class TestOrchestrator:
         if agent_id in self.connected_agents:
             self.connected_agents[agent_id]["last_heartbeat"] = time.time()
         
-        logger.debug(f"Heartbeat from {agent_id}")
+        logger.debug(f"💓 Heartbeat from {agent_id}")
     
     async def send_to_agent(self, agent_id: str, message: Dict[str, Any]):
         """Send message to specific agent."""
         if agent_id not in self.websockets:
-            logger.error(f"Agent {agent_id} not connected")
+            logger.error(f"❌ Agent {agent_id} not connected")
             return False
         
         try:
             websocket = self.websockets[agent_id]
             await websocket.send(json.dumps(message))
-            logger.info(f"Sent message to {agent_id}: {message.get('message_type')}")
+            logger.info(f"📤 Sent message to {agent_id}: {message.get('message_type')}")
             return True
         except Exception as e:
-            logger.error(f"Failed to send message to {agent_id}: {e}")
+            logger.error(f"❌ Failed to send message to {agent_id}: {e}")
             return False
     
-    async def send_command_to_agent(self, agent_id: str, command: str):
-        """Send command to agent."""
-        request_id = str(uuid.uuid4())
-        message = {
-            "message_type": "command",
-            "agent_id": agent_id,
-            "timestamp": time.time(),
-            "payload": {
-                "request_id": request_id,
-                "command": command,
-                "priority": "normal"
-            }
-        }
-        
-        success = await self.send_to_agent(agent_id, message)
-        if success:
-            logger.info(f"Sent command '{command}' to {agent_id} (request_id: {request_id})")
-        return request_id if success else None
-    
-    async def query_agent(self, agent_id: str, query_type: str):
-        """Query agent for information."""
-        request_id = str(uuid.uuid4())
-        message = {
-            "message_type": "query",
-            "agent_id": agent_id,
-            "timestamp": time.time(),
-            "payload": {
-                "request_id": request_id,
-                "query_type": query_type
-            }
-        }
-        
-        success = await self.send_to_agent(agent_id, message)
-        if success:
-            logger.info(f"Sent query '{query_type}' to {agent_id} (request_id: {request_id})")
-        return request_id if success else None
-    
-    def list_agents(self):
-        """List all connected agents."""
-        if not self.connected_agents:
-            print("No agents connected")
-            return
-        
-        print("\n📋 Connected Agents:")
-        print("-" * 60)
-        for agent_id, info in self.connected_agents.items():
-            uptime = time.time() - info["connection_time"]
-            print(f"🤖 Agent ID: {agent_id}")
-            print(f"   Type: {info['agent_type']}")
-            print(f"   Location: {info['location']}")
-            print(f"   Capabilities: {', '.join(info['capabilities'])}")
-            print(f"   LED Status: {info.get('led_status', 'unknown')}")
-            print(f"   Uptime: {uptime:.1f}s")
-            print(f"   Last Heartbeat: {time.time() - info['last_heartbeat']:.1f}s ago")
-            print("-" * 60)
-    
-    async def handle_client(self, websocket: Any, path: str):
+    async def handle_client(self, websocket: Any):
         """Handle WebSocket client connection."""
-        logger.info(f"New client connected from {websocket.remote_address}")
+        logger.info(f"🔗 New client connected from {websocket.remote_address}")
         
         try:
             async for message in websocket:
                 await self.handle_message(websocket, message)
                 
         except websockets.exceptions.ConnectionClosed:
-            logger.info("Client disconnected")
+            logger.info("🔌 Client disconnected")
         except Exception as e:
-            logger.error(f"Error handling client: {e}")
+            logger.error(f"❌ Error handling client: {e}")
         finally:
             # Remove disconnected agent
             agent_to_remove = None
@@ -223,71 +167,26 @@ class TestOrchestrator:
                 del self.websockets[agent_to_remove]
                 if agent_to_remove in self.connected_agents:
                     del self.connected_agents[agent_to_remove]
-                logger.info(f"Agent {agent_to_remove} disconnected and removed")
+                logger.info(f"🗑️  Agent {agent_to_remove} disconnected and removed")
     
     async def start_server(self):
         """Start the WebSocket server."""
-        logger.info(f"Starting orchestrator server on {self.host}:{self.port}")
+        logger.info(f"🚀 Starting orchestrator server on {self.host}:{self.port}")
         
         async with websockets.serve(self.handle_client, self.host, self.port):
-            logger.info(f"🌐 Orchestrator server running on ws://{self.host}:{self.port}/ws")
-            logger.info("Waiting for RPi agents to connect...")
+            logger.info(f"🌐 Orchestrator server running on ws://{self.host}:{self.port}")
+            logger.info("⏳ Waiting for RPi agents to connect...")
             
             # Keep server running
             await asyncio.Future()  # Run forever
-    
-    async def interactive_console(self):
-        """Interactive console for testing commands."""
-        print("\n🎮 Interactive Console")
-        print("Commands:")
-        print("  list - List connected agents")
-        print("  cmd <agent_id> <command> - Send command to agent")
-        print("  query <agent_id> <query_type> - Query agent")
-        print("  quit - Exit console")
-        print("-" * 50)
-        
-        while True:
-            try:
-                user_input = input("\n🔹 Orchestrator: ").strip()
-                
-                if user_input.lower() in ['quit', 'exit', 'q']:
-                    break
-                
-                if user_input.lower() == 'list':
-                    self.list_agents()
-                    continue
-                
-                parts = user_input.split(' ', 2)
-                
-                if parts[0].lower() == 'cmd' and len(parts) >= 3:
-                    agent_id = parts[1]
-                    command = ' '.join(parts[2:])
-                    await self.send_command_to_agent(agent_id, command)
-                
-                elif parts[0].lower() == 'query' and len(parts) >= 3:
-                    agent_id = parts[1]
-                    query_type = parts[2]
-                    await self.query_agent(agent_id, query_type)
-                
-                else:
-                    print("Unknown command. Type 'list', 'cmd <agent_id> <command>', 'query <agent_id> <type>', or 'quit'")
-                    
-            except KeyboardInterrupt:
-                break
-            except Exception as e:
-                logger.error(f"Console error: {e}")
 
 
 async def main():
     """Main entry point."""
-    orchestrator = TestOrchestrator()
+    orchestrator = SimpleOrchestrator()
     
-    # Start server and console concurrently
     try:
-        await asyncio.gather(
-            orchestrator.start_server(),
-            orchestrator.interactive_console()
-        )
+        await orchestrator.start_server()
     except KeyboardInterrupt:
         print("\n👋 Shutting down orchestrator...")
 
