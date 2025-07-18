@@ -14,10 +14,10 @@ def main():
     
     # Motor configuration as specified
     motors = {
-        "rear_left": {"channel": 0, "in1": 1, "in2": 12},
-        "rear_right": {"channel": 6, "in1": 7, "in2": 8},
-        "front_left": {"channel": 5, "in1": 4, "in2": 13},
-        "front_right": {"channel": 11, "in1": 10, "in2": 9},
+        "front_right": {"channel": 15, "in1": 14, "in2": 13},
+        "front_left": {"channel": 4, "in1": 5, "in2": 6},
+        "rear_right": {"channel": 10, "in1": 12, "in2": 11},
+        "rear_left": {"channel": 9, "in1": 7, "in2": 8},
     }
     
     # Servo configuration as specified
