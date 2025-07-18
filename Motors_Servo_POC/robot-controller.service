@@ -1,0 +1,14 @@
+[Unit]
+Description=Robot Controller Service
+After=network.target
+
+[Service]
+Type=simple
+User=spark
+WorkingDirectory=/home/spark/RR2025/Motors_Servo_POC
+ExecStart=/home/spark/RR2025/Motors_Servo_POC/venv/bin/python /home/spark/RR2025/Motors_Servo_POC/main.py --mode patrol
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

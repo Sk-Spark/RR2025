@@ -1,0 +1,13 @@
+# Requirements for Robot Controller
+# Core CircuitPython libraries (must be installed first)
+adafruit-blinka
+adafruit-circuitpython-busdevice
+
+# Adafruit CircuitPython libraries for PCA9685 and motor control
+adafruit-circuitpython-pca9685
+adafruit-circuitpython-motor
+
+# GPIO libraries for Raspberry Pi 5
+lgpio
+RPi.GPIO
+gpiozero
