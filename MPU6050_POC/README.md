@@ -124,6 +124,24 @@ This opens a GUI window with real-time plots of all sensor data including accele
 - Multiple synchronized plots
 - Real-time data visualization
 
+**Advanced Data Visualizer:**
+```bash
+python3 MpuDataVisualiser.py
+```
+This opens an enhanced GUI with comprehensive real-time visualization featuring:
+- Interactive start/stop controls
+- Real-time value display
+- Multiple synchronized plots (accelerometer, gyroscope, temperature, angles)
+- Configurable data buffer size
+- Professional matplotlib integration
+- Thread-safe data collection
+
+**Simple connection test:**
+```bash
+python3 test_mpu6050_simple.py
+```
+This performs a quick test to verify MPU6050 connectivity and basic functionality without GUI dependencies.
+
 ### Using the MPU6050 Class
 
 You can import and use the MPU6050 class in your own scripts:
@@ -153,6 +171,9 @@ mpu.close()
 ## Files Description
 
 - `mpu6050.py` - MPU6050 sensor class library (main module)
+- `main.py` - Real-time sensor reading script with console display
+- `MpuDataVisualiser.py` - Advanced GUI application for real-time data visualization
+- `test_mpu6050_simple.py` - Simple connection test script without GUI dependencies
 - `mpu6050_reader.py` - Real-time sensor reading script with display
 - `plotmpu.py` - GUI application for real-time data plotting
 - `test_connection.py` - I2C connection test script
