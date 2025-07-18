@@ -8,7 +8,7 @@ import signal
 import sys
 from pca9685_controller_gpiozero import PCA9685Controller
 from motor_controller import MotorController
-from servo_controller import ServoController
+from camera_pan_tilt_controller import CameraPanTiltController
 
 
 class RobotController:
@@ -36,7 +36,7 @@ class RobotController:
         self.motor_controller = MotorController(self.pca_controller, motor_config)
         
         # Initialize servo controller
-        self.servo_controller = ServoController(self.pca_controller, servo_config)
+        self.servo_controller = CameraPanTiltController(self.pca_controller, servo_config)
         
         # Setup signal handler for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)

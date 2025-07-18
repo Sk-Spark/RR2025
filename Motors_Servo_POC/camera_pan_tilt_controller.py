@@ -1,14 +1,14 @@
 """
-Servo Controller Module
-Class for controlling SG90 servos using PCA9685 PWM driver with GPIO Zero
+Camera Pan-Tilt Controller Module
+Class for controlling SG90 servos for camera pan and tilt using PCA9685 PWM driver with GPIO Zero
 """
 
 import time
 from pca9685_controller_gpiozero import PCA9685Controller
 
 
-class ServoController:
-    """Controller for SG90 servos using PCA9685"""
+class CameraPanTiltController:
+    """Controller for SG90 servos for camera pan and tilt using PCA9685"""
     
     def __init__(self, pca_controller, servo_config):
         """
@@ -33,7 +33,7 @@ class ServoController:
         # Initialize servos to center position
         self.center_all_servos()
         
-        print(f"Servo controller initialized with {len(self.servos)} servos")
+        print(f"Camera Pan-Tilt controller initialized with {len(self.servos)} servos")
     
     def angle_to_pulse_width(self, angle):
         """

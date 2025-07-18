@@ -128,13 +128,13 @@ python3 main.py --i2c-address 0x41
    - High-level movement functions (forward, backward, turn, pivot)
    - Individual motor control
 
-3. **ServoController** (`servo_controller.py`)
-   - SG90 servo angle control
+3. **CameraPanTiltController** (`camera_pan_tilt_controller.py`)
+   - SG90 servo control for camera pan and tilt
    - Camera positioning functions
    - Servo calibration and testing
 
 4. **RobotController** (`robot_controller.py`)
-   - Main controller combining motor and servo control
+   - Main controller combining motor and camera pan-tilt control
    - Autonomous behaviors and demonstration modes
    - Signal handling and cleanup
 
@@ -156,7 +156,7 @@ servos = {
     "camera_pan": 13,
 }
 
-# Initialize robot
+# Initialize robot with camera pan-tilt control
 robot = RobotController(motors, servos)
 
 # Basic movement
@@ -164,7 +164,7 @@ robot.move_forward(speed=50, duration=2)
 robot.turn_left(speed=30, duration=1)
 robot.stop_movement()
 
-# Camera control
+# Camera pan-tilt control
 robot.set_camera_position(tilt_angle=45, pan_angle=90)
 robot.look_up(30)
 robot.center_camera()
@@ -185,7 +185,7 @@ robot.cleanup()
 - `stop_movement()` - Stop all motors
 - `set_motor_speed(motor_name, speed, direction)` - Control individual motor
 
-### Servo Control
+### Camera Pan-Tilt Control
 - `set_camera_position(tilt_angle, pan_angle)` - Set camera position
 - `look_up(angle)` - Tilt camera up
 - `look_down(angle)` - Tilt camera down
