@@ -144,6 +144,126 @@ class RobotController:
         """
         self.motor_controller.set_motor_speed(motor_name, speed, direction)
     
+    # Mecanum wheel movement methods
+    def strafe_left(self, speed=50, duration=None):
+        """
+        Strafe left using mecanum wheels
+        
+        Args:
+            speed (int): Speed percentage (0-100)
+            duration (float): Duration in seconds (None for continuous)
+        """
+        self.motor_controller.strafe_left(speed)
+        if duration:
+            time.sleep(duration)
+            self.stop_movement()
+    
+    def strafe_right(self, speed=50, duration=None):
+        """
+        Strafe right using mecanum wheels
+        
+        Args:
+            speed (int): Speed percentage (0-100)
+            duration (float): Duration in seconds (None for continuous)
+        """
+        self.motor_controller.strafe_right(speed)
+        if duration:
+            time.sleep(duration)
+            self.stop_movement()
+    
+    def move_diagonal_forward_left(self, speed=50, duration=None):
+        """
+        Move diagonally forward-left
+        
+        Args:
+            speed (int): Speed percentage (0-100)
+            duration (float): Duration in seconds (None for continuous)
+        """
+        self.motor_controller.move_diagonal_forward_left(speed)
+        if duration:
+            time.sleep(duration)
+            self.stop_movement()
+    
+    def move_diagonal_forward_right(self, speed=50, duration=None):
+        """
+        Move diagonally forward-right
+        
+        Args:
+            speed (int): Speed percentage (0-100)
+            duration (float): Duration in seconds (None for continuous)
+        """
+        self.motor_controller.move_diagonal_forward_right(speed)
+        if duration:
+            time.sleep(duration)
+            self.stop_movement()
+    
+    def move_diagonal_backward_left(self, speed=50, duration=None):
+        """
+        Move diagonally backward-left
+        
+        Args:
+            speed (int): Speed percentage (0-100)
+            duration (float): Duration in seconds (None for continuous)
+        """
+        self.motor_controller.move_diagonal_backward_left(speed)
+        if duration:
+            time.sleep(duration)
+            self.stop_movement()
+    
+    def move_diagonal_backward_right(self, speed=50, duration=None):
+        """
+        Move diagonally backward-right
+        
+        Args:
+            speed (int): Speed percentage (0-100)
+            duration (float): Duration in seconds (None for continuous)
+        """
+        self.motor_controller.move_diagonal_backward_right(speed)
+        if duration:
+            time.sleep(duration)
+            self.stop_movement()
+    
+    def rotate_clockwise(self, speed=50, duration=None):
+        """
+        Rotate clockwise in place
+        
+        Args:
+            speed (int): Speed percentage (0-100)
+            duration (float): Duration in seconds (None for continuous)
+        """
+        self.motor_controller.rotate_clockwise(speed)
+        if duration:
+            time.sleep(duration)
+            self.stop_movement()
+    
+    def rotate_counterclockwise(self, speed=50, duration=None):
+        """
+        Rotate counterclockwise in place
+        
+        Args:
+            speed (int): Speed percentage (0-100)
+            duration (float): Duration in seconds (None for continuous)
+        """
+        self.motor_controller.rotate_counterclockwise(speed)
+        if duration:
+            time.sleep(duration)
+            self.stop_movement()
+    
+    def mecanum_move(self, x_speed=0, y_speed=0, rotation_speed=0, duration=None):
+        """
+        Advanced mecanum movement with combined translation and rotation
+        
+        Args:
+            x_speed (int): Speed in X direction (-100 to 100, negative = left)
+            y_speed (int): Speed in Y direction (-100 to 100, negative = backward)
+            rotation_speed (int): Rotation speed (-100 to 100, negative = counterclockwise)
+            duration (float): Duration in seconds (None for continuous)
+        """
+        self.motor_controller.mecanum_move(x_speed, y_speed, rotation_speed)
+        if duration:
+            time.sleep(duration)
+            self.stop_movement()
+    
     # Servo control methods
     def set_camera_position(self, tilt_angle=90, pan_angle=90):
         """
@@ -155,25 +275,30 @@ class RobotController:
         """
         self.servo_controller.set_camera_position(tilt_angle, pan_angle)
     
-    def look_up(self, angle=45):
-        """Look up by specified angle"""
-        self.servo_controller.look_up(angle)
+    # Camera control methods with smooth movement
+    def camera_look_up(self, angle=45, smooth=True):
+        """Look up with camera"""
+        self.servo_controller.look_up(angle, smooth)
     
-    def look_down(self, angle=45):
-        """Look down by specified angle"""
-        self.servo_controller.look_down(angle)
+    def camera_look_down(self, angle=45, smooth=True):
+        """Look down with camera"""
+        self.servo_controller.look_down(angle, smooth)
     
-    def look_left(self, angle=45):
-        """Look left by specified angle"""
-        self.servo_controller.look_left(angle)
+    def camera_look_left(self, angle=45, smooth=True):
+        """Look left with camera"""
+        self.servo_controller.look_left(angle, smooth)
     
-    def look_right(self, angle=45):
-        """Look right by specified angle"""
-        self.servo_controller.look_right(angle)
+    def camera_look_right(self, angle=45, smooth=True):
+        """Look right with camera"""
+        self.servo_controller.look_right(angle, smooth)
     
-    def center_camera(self):
-        """Center the camera"""
-        self.servo_controller.center_all_servos()
+    def camera_center(self, smooth=True):
+        """Center camera position"""
+        if smooth:
+            self.servo_controller.smooth_set_camera_position(90, 90, 1.0)
+        else:
+            self.servo_controller.set_servo_angle("camera_tilt", 90)
+            self.servo_controller.set_servo_angle("camera_pan", 90)
     
     def set_servo_angle(self, servo_name, angle):
         """
@@ -323,8 +448,12 @@ class RobotController:
                 ("Backward", lambda: self.move_backward(40, 2)),
                 ("Turn Left", lambda: self.turn_left(40, 1)),
                 ("Turn Right", lambda: self.turn_right(40, 1)),
-                ("Pivot Left", lambda: self.pivot_left(40, 1)),
-                ("Pivot Right", lambda: self.pivot_right(40, 1)),
+                ("Strafe Left", lambda: self.strafe_left(40, 2)),
+                ("Strafe Right", lambda: self.strafe_right(40, 2)),
+                ("Diagonal Forward-Left", lambda: self.move_diagonal_forward_left(40, 1.5)),
+                ("Diagonal Forward-Right", lambda: self.move_diagonal_forward_right(40, 1.5)),
+                ("Rotate Clockwise", lambda: self.rotate_clockwise(40, 1)),
+                ("Rotate Counter-clockwise", lambda: self.rotate_counterclockwise(40, 1)),
             ]
             
             for movement_name, movement_func in movements:

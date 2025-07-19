@@ -96,6 +96,117 @@ class CameraPanTiltController:
         
         print(f"Servo {servo_name}: Angle={angle}°, Pulse={pulse_width}μs, Duty={duty_cycle}")
     
+    def smooth_move_servo(self, servo_name, target_angle, duration=1.0, easing="ease_in_out"):
+        """
+        Smoothly move servo to target angle with easing
+        
+        Args:
+            servo_name (str): Name of the servo from config
+            target_angle (int): Target angle in degrees (0-180)
+            duration (float): Duration of movement in seconds
+            easing (str): Easing function ("linear", "ease_in", "ease_out", "ease_in_out")
+        """
+        if servo_name not in self.servos:
+            raise ValueError(f"Servo {servo_name} not found in configuration")
+        
+        # Get current position
+        start_angle = self.get_servo_angle(servo_name)
+        target_angle = max(self.servo_min_angle, min(self.servo_max_angle, target_angle))
+        
+        # Calculate movement parameters
+        angle_diff = target_angle - start_angle
+        
+        if abs(angle_diff) < 1:  # Already close enough
+            return
+        
+        # Movement parameters
+        steps = max(20, int(abs(angle_diff) * 2))  # More steps for larger movements
+        step_delay = duration / steps
+        
+        print(f"Smooth moving {servo_name} from {start_angle}° to {target_angle}° over {duration}s")
+        
+        for i in range(steps + 1):
+            # Calculate progress (0.0 to 1.0)
+            progress = i / steps
+            
+            # Apply easing function
+            if easing == "linear":
+                eased_progress = progress
+            elif easing == "ease_in":
+                eased_progress = self._ease_in(progress)
+            elif easing == "ease_out":
+                eased_progress = self._ease_out(progress)
+            elif easing == "ease_in_out":
+                eased_progress = self._ease_in_out(progress)
+            else:
+                eased_progress = progress  # Default to linear
+            
+            # Calculate current angle
+            current_angle = start_angle + (angle_diff * eased_progress)
+            
+            # Set servo position (without printing to reduce spam)
+            angle = max(self.servo_min_angle, min(self.servo_max_angle, int(current_angle)))
+            pulse_width = self.angle_to_pulse_width(angle)
+            duty_cycle = self.pulse_width_to_duty_cycle(pulse_width)
+            
+            channel = self.servos[servo_name]
+            self.pca.set_pwm(channel, duty_cycle)
+            self.current_positions[servo_name] = angle
+            
+            if i < steps:  # Don't delay after the last step
+                time.sleep(step_delay)
+        
+        print(f"Servo {servo_name} smooth movement complete: {target_angle}°")
+    
+    def _ease_in(self, t):
+        """Ease-in function (quadratic)"""
+        return t * t
+    
+    def _ease_out(self, t):
+        """Ease-out function (quadratic)"""
+        return 1 - (1 - t) * (1 - t)
+    
+    def _ease_in_out(self, t):
+        """Ease-in-out function (quadratic)"""
+        if t < 0.5:
+            return 2 * t * t
+        else:
+            return 1 - 2 * (1 - t) * (1 - t)
+    
+    def smooth_set_camera_position(self, tilt_angle=90, pan_angle=90, duration=1.0, easing="ease_in_out"):
+        """
+        Smoothly set camera position using both tilt and pan servos
+        
+        Args:
+            tilt_angle (int): Tilt angle in degrees (0-180)
+            pan_angle (int): Pan angle in degrees (0-180)
+            duration (float): Duration of movement in seconds
+            easing (str): Easing function type
+        """
+        # Move both servos simultaneously in separate threads
+        import threading
+        
+        def move_tilt():
+            if "camera_tilt" in self.servos:
+                self.smooth_move_servo("camera_tilt", tilt_angle, duration, easing)
+        
+        def move_pan():
+            if "camera_pan" in self.servos:
+                self.smooth_move_servo("camera_pan", pan_angle, duration, easing)
+        
+        # Start both movements simultaneously
+        tilt_thread = threading.Thread(target=move_tilt)
+        pan_thread = threading.Thread(target=move_pan)
+        
+        tilt_thread.start()
+        pan_thread.start()
+        
+        # Wait for both to complete
+        tilt_thread.join()
+        pan_thread.join()
+        
+        print(f"Camera position smoothly set: Tilt={tilt_angle}°, Pan={pan_angle}°")
+    
     def get_servo_angle(self, servo_name):
         """
         Get current servo angle
@@ -178,48 +289,76 @@ class CameraPanTiltController:
             "pan": self.get_servo_angle("camera_pan")
         }
     
-    def look_up(self, angle=45):
+    def look_up(self, angle=45, smooth=True, duration=0.8):
         """
         Tilt camera up by specified angle from center
         
         Args:
             angle (int): Angle above center (0-90)
+            smooth (bool): Whether to use smooth movement
+            duration (float): Duration of smooth movement in seconds
         """
         tilt_angle = 90 - min(90, max(0, angle))  # Fixed: subtract for up
-        self.set_servo_angle("camera_tilt", tilt_angle)
+        
+        if smooth:
+            self.smooth_move_servo("camera_tilt", tilt_angle, duration)
+        else:
+            self.set_servo_angle("camera_tilt", tilt_angle)
+        
         print(f"Camera looking up at {angle}° above center")
     
-    def look_down(self, angle=45):
+    def look_down(self, angle=45, smooth=True, duration=0.8):
         """
         Tilt camera down by specified angle from center
         
         Args:
             angle (int): Angle below center (0-90)
+            smooth (bool): Whether to use smooth movement
+            duration (float): Duration of smooth movement in seconds
         """
         tilt_angle = 90 + min(90, max(0, angle))  # Fixed: add for down
-        self.set_servo_angle("camera_tilt", tilt_angle)
+        
+        if smooth:
+            self.smooth_move_servo("camera_tilt", tilt_angle, duration)
+        else:
+            self.set_servo_angle("camera_tilt", tilt_angle)
+        
         print(f"Camera looking down at {angle}° below center")
     
-    def look_left(self, angle=45):
+    def look_left(self, angle=45, smooth=True, duration=0.8):
         """
         Pan camera left by specified angle from center
         
         Args:
             angle (int): Angle left of center (0-90)
+            smooth (bool): Whether to use smooth movement
+            duration (float): Duration of smooth movement in seconds
         """
         pan_angle = 90 + min(90, max(0, angle))
-        self.set_servo_angle("camera_pan", pan_angle)
+        
+        if smooth:
+            self.smooth_move_servo("camera_pan", pan_angle, duration)
+        else:
+            self.set_servo_angle("camera_pan", pan_angle)
+        
         print(f"Camera looking left at {angle}° from center")
     
-    def look_right(self, angle=45):
+    def look_right(self, angle=45, smooth=True, duration=0.8):
         """
         Pan camera right by specified angle from center
         
         Args:
             angle (int): Angle right of center (0-90)
+            smooth (bool): Whether to use smooth movement
+            duration (float): Duration of smooth movement in seconds
         """
         pan_angle = 90 - min(90, max(0, angle))
-        self.set_servo_angle("camera_pan", pan_angle)
+        
+        if smooth:
+            self.smooth_move_servo("camera_pan", pan_angle, duration)
+        else:
+            self.set_servo_angle("camera_pan", pan_angle)
+        
         print(f"Camera looking right at {angle}° from center")
     
     def disable_servo(self, servo_name):

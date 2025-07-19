@@ -6,7 +6,7 @@ A modular Python robot controller for controlling 4 BO motors and 2 SG90 servos 
 
 - **Modular Design**: Separate classes for PCA9685, motor control, and servo control
 - **GPIO Zero Integration**: Uses gpiozero library with LGPIO for Raspberry Pi 5 compatibility
-- **4 BO Motor Control**: Independent control of 4 DC motors with direction and speed
+- **4 Mecanum Wheel Control**: Full omnidirectional movement with advanced kinematics
 - **2 SG90 Servo Control**: Precise angle control for camera tilt and pan
 - **High-Level Robot Functions**: Movement patterns, camera positioning, and autonomous modes
 - **Safety Features**: Graceful shutdown, error handling, and resource cleanup
@@ -97,18 +97,29 @@ python3 main.py --mode demo
    Manual control via keyboard commands.
 
 ### Interactive Mode Commands
+
+**Basic Movement:**
 - `w/s` - Move forward/backward
-- `a/d` - Turn left/right
+- `a/d` - Turn left/right  
 - `q/e` - Pivot left/right
+
+**Mecanum Movement:**
+- `z/x` - Strafe left/right
+- `u/o` - Diagonal forward-left/right
+- `m/.` - Diagonal backward-left/right
+- `r/t` - Rotate counter-clockwise/clockwise
+
+**Camera Controls:**
 - `i/k` - Camera up/down
 - `j/l` - Camera left/right
 - `c` - Center camera
-- `x` - Stop all movement
+
+**System Controls:**
+- `n` - Stop all movement
 - `speed=X` - Set speed (0-100)
 - `status` - Show system status
-- `exit` - Exit program
-
-### Custom I2C Address
+- `mecanum x y rot` - Advanced control (e.g., `mecanum 50 30 -20`)
+- `exit` - Exit program### Custom I2C Address
 ```bash
 python3 main.py --i2c-address 0x41
 ```
@@ -184,6 +195,17 @@ robot.cleanup()
 - `pivot_right(speed, duration)` - Pivot right
 - `stop_movement()` - Stop all motors
 - `set_motor_speed(motor_name, speed, direction)` - Control individual motor
+
+### Mecanum Wheel Control
+- `strafe_left(speed, duration)` - Strafe left
+- `strafe_right(speed, duration)` - Strafe right
+- `move_diagonal_forward_left(speed, duration)` - Diagonal forward-left
+- `move_diagonal_forward_right(speed, duration)` - Diagonal forward-right
+- `move_diagonal_backward_left(speed, duration)` - Diagonal backward-left
+- `move_diagonal_backward_right(speed, duration)` - Diagonal backward-right
+- `rotate_clockwise(speed, duration)` - Rotate clockwise in place
+- `rotate_counterclockwise(speed, duration)` - Rotate counter-clockwise in place
+- `mecanum_move(x_speed, y_speed, rotation_speed, duration)` - Advanced combined movement
 
 ### Camera Pan-Tilt Control
 - `set_camera_position(tilt_angle, pan_angle)` - Set camera position
