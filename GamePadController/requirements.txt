@@ -1,18 +1,12 @@
 # Xbox Controller Robot Control System Requirements
-# For use with existing virtual environment
+# Optimized for Raspberry Pi 5
 
 # Xbox controller input
 pygame
 
-# Core CircuitPython libraries (must be installed first)
+# Core CircuitPython libraries for Pi 5
 adafruit-blinka
 adafruit-circuitpython-busdevice
 
-# Adafruit CircuitPython libraries for PCA9685 and motor control
+# PCA9685 PWM control
 adafruit-circuitpython-pca9685
-adafruit-circuitpython-motor
-
-# GPIO libraries for Raspberry Pi 5 (matching Motors_Servo_POC)
-lgpio
-RPi.GPIO
-gpiozero

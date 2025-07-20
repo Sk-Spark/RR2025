@@ -1,7 +1,7 @@
 #!/bin/bash
-# Start script for Xbox Controller Demo Mode
+# Start script for Xbox Controller Robot Control System
 
-echo "🎮 Starting Xbox Controller Demo..."
+echo "🎮 Starting Xbox Controller Robot Control..."
 
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then
@@ -25,6 +25,6 @@ fi
 # Activate virtual environment
 source venv/bin/activate
 
-# Run the demo controller reader
-echo "🚀 Launching controller demo..."
-python3 xbox_controller.py
+# Run the main robot controller
+echo "🚀 Launching robot controller..."
+python3 main.py

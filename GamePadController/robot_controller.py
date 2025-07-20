@@ -187,11 +187,12 @@ class RobotController:
         if abs(y) > abs(x):  # Forward/backward movement
             if y > 0.15:  # Forward
                 self.current_movement = "stick_forward"
-                self.motor_controller.move_forward(speed)
+                self.motor_controller.move_backward(speed)
             elif y < -0.15:  # Backward
                 self.current_movement = "stick_backward"
-                self.motor_controller.move_backward(speed)
+                self.motor_controller.move_forward(speed)
         else:  # Left/right turning
+            speed = int(abs(x) * self.motor_speed)
             if x > 0.15:  # Turn right
                 self.current_movement = "stick_turn_right"
                 self.motor_controller.turn_right(speed)
@@ -208,8 +209,8 @@ class RobotController:
             return
         
         # Calculate servo adjustments
-        pan_delta = int(x * self.servo_increment)
-        tilt_delta = int(-y * self.servo_increment)  # Invert Y for intuitive control
+        pan_delta = int(-x * self.servo_increment)
+        tilt_delta = int(y * self.servo_increment)  # Invert Y for intuitive control
         
         # Apply adjustments
         if "camera_pan" in self.servo_config:
