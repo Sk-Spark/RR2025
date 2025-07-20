@@ -6,7 +6,7 @@ Main controller class that combines motor and servo control
 import time
 import signal
 import sys
-from pca9685_controller_gpiozero import PCA9685Controller
+from pca9685_controller_simple import PCA9685Controller
 from motor_controller import MotorController
 from camera_pan_tilt_controller import CameraPanTiltController
 

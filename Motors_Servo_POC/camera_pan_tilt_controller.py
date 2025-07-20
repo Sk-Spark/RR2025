@@ -1,10 +1,10 @@
 """
 Camera Pan-Tilt Controller Module
-Class for controlling SG90 servos for camera pan and tilt using PCA9685 PWM driver with GPIO Zero
+Class for controlling SG90 servos for camera pan and tilt using PCA9685 PWM driver
 """
 
 import time
-from pca9685_controller_gpiozero import PCA9685Controller
+from pca9685_controller_simple import PCA9685Controller
 
 
 class CameraPanTiltController:

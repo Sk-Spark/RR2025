@@ -1,102 +1,139 @@
-# Robot Controller for RPi 5 with PCA9685
+# Robot Controller for Raspberry Pi 5
 
-A modular Python robot controller for controlling 4 BO motors and 2 SG90 servos using a PCA9685 16-channel 12-bit PWM driver connected to a Raspberry Pi 5.
+A modular Python robot controller for 4 motors and 2 servos using PCA9685 PWM driver, optimized for Raspberry Pi 5.
 
-## Features
+## 🚀 Features
 
-- **Modular Design**: Separate classes for PCA9685, motor control, and servo control
-- **GPIO Zero Integration**: Uses gpiozero library with LGPIO for Raspberry Pi 5 compatibility
-- **4 Mecanum Wheel Control**: Full omnidirectional movement with advanced kinematics
-- **2 SG90 Servo Control**: Precise angle control for camera tilt and pan
-- **High-Level Robot Functions**: Movement patterns, camera positioning, and autonomous modes
-- **Safety Features**: Graceful shutdown, error handling, and resource cleanup
-- **Multiple Operation Modes**: Demo, patrol, test, and interactive modes
+- **Mecanum Wheel Control**: Full omnidirectional movement (forward/backward/strafe/diagonal/rotate)
+- **Smooth Servo Control**: Professional camera movements with easing functions
+- **Raspberry Pi 5 Compatible**: Direct I2C implementation without GPIO issues
+- **Multiple Operation Modes**: Demo, test, camera, and interactive control
+- **Modular Design**: Clean separation of motor, servo, and PWM control
 
-## Hardware Configuration
+## 🔧 Hardware Setup
 
-### Motors (Connected to PCA9685)
+### Motor Configuration
 ```python
 motors = {
-    "rear_left": {"channel": 0, "in1": 1, "in2": 2},
-    "rear_right": {"channel": 6, "in1": 7, "in2": 8},
-    "front_left": {"channel": 5, "in1": 4, "in2": 3},
-    "front_right": {"channel": 11, "in1": 10, "in2": 9},
+    "front_right": {"channel": 15, "in1": 14, "in2": 13},
+    "front_left": {"channel": 4, "in1": 5, "in2": 6},
+    "rear_right": {"channel": 10, "in1": 12, "in2": 11},
+    "rear_left": {"channel": 9, "in1": 7, "in2": 8},
 }
 ```
 
-### Servos (Connected to PCA9685)
+### Servo Configuration
 ```python
 servos = {
-    "camera_tilt": 12,
-    "camera_pan": 13,
+    "camera_tilt": 3,
+    "camera_pan": 2,
 }
 ```
 
-## Installation
+## 📦 Installation
 
-1. **Install system dependencies**:
-   ```bash
-   sudo apt update
-   sudo apt install python3-pip python3-venv i2c-tools
-   ```
-
-2. **Enable I2C on Raspberry Pi**:
-   ```bash
-   sudo raspi-config
-   # Navigate to Interface Options -> I2C -> Enable
-   ```
-
-3. **Create virtual environment**:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-4. **Install Python dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. **Verify I2C connection**:
-   ```bash
-   i2cdetect -y 1
-   # Should show device at address 0x40 (or your configured address)
-   ```
-
-## Usage
-
-### Basic Usage
+### Quick Setup
 ```bash
-python3 main.py --mode demo
+# Clone and navigate to project
+cd /home/spark/RR2025/Motors_Servo_POC
+
+# Run automated setup
+./setup.sh
+
+# Or manual setup:
+sudo apt update && sudo apt install python3-pip python3-venv i2c-tools
+sudo raspi-config nonint do_i2c 0  # Enable I2C
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### Available Modes
+### Verify Hardware
+```bash
+i2cdetect -y 1  # Should show PCA9685 at address 0x40
+```
 
-1. **Demo Mode** (default):
-   ```bash
-   python3 main.py --mode demo
-   ```
-   Demonstrates all robot capabilities including motor and servo tests.
+## 🎮 Usage
 
-2. **Patrol Mode**:
-   ```bash
-   python3 main.py --mode patrol
-   ```
-   Autonomous patrol with movement and camera scanning.
+### Simple Start
+```bash
+./run_robot.sh --mode demo    # Demonstration of all features
+./run_robot.sh --mode test    # Test all components
+./run_robot.sh --mode interactive  # Manual control
+./run_robot.sh --mode camera  # Camera movement test
+```
 
-3. **Test Mode**:
-   ```bash
-   python3 main.py --mode test
-   ```
-   Tests all motors and servos individually.
+### Interactive Controls
+| Key | Action | Key | Action |
+|-----|--------|-----|--------|
+| `w/s` | Forward/Backward | `a/d` | Turn Left/Right |
+| `z/x` | Strafe Left/Right | `q/e` | Pivot Left/Right |
+| `u/o` | Diagonal Forward | `r/t` | Rotate CCW/CW |
+| `i/k` | Camera Up/Down | `j/l` | Camera Left/Right |
+| `c` | Center Camera | `n` | Stop All |
 
-4. **Interactive Mode**:
-   ```bash
-   python3 main.py --mode interactive
-   ```
-   Manual control via keyboard commands.
+## 🛠 Technical Details
 
-### Interactive Mode Commands
+### Dependencies (Minimal Set)
+- `adafruit-blinka` - CircuitPython for Pi
+- `adafruit-circuitpython-busdevice` - I2C communication
+- `adafruit-circuitpython-pca9685` - PWM control
+
+### Key Components
+- `main.py` - Entry point with operation modes
+- `robot_controller.py` - Main orchestrator
+- `motor_controller.py` - Mecanum wheel control
+- `camera_pan_tilt_controller.py` - Smooth servo movements
+- `pca9685_controller_simple.py` - Pi 5 compatible PWM driver
+
+## 🔧 Troubleshooting
+
+### Common Issues
+```bash
+# I2C not detected
+sudo raspi-config nonint do_i2c 0
+sudo reboot
+
+# Permission issues
+sudo usermod -a -G i2c,gpio $USER
+logout
+
+# Import errors
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Hardware Check
+```bash
+# Test I2C connection
+i2cdetect -y 1
+
+# Quick system test
+./run_robot.sh --mode test
+```
+
+## 📁 Project Structure
+```
+Motors_Servo_POC/
+├── main.py                          # Entry point
+├── robot_controller.py              # Main controller
+├── motor_controller.py              # Motor control
+├── camera_pan_tilt_controller.py    # Servo control
+├── pca9685_controller_simple.py     # PWM driver (Pi 5 compatible)
+├── requirements.txt                 # Dependencies
+├── run_robot.sh                     # Launch script
+└── setup.sh                         # Installation script
+```
+
+## 🚀 Getting Started
+
+1. **Connect Hardware**: PCA9685 to Pi via I2C, motors/servos to PCA9685
+2. **Run Setup**: `./setup.sh`
+3. **Test System**: `./run_robot.sh --mode test`
+4. **Start Controlling**: `./run_robot.sh --mode interactive`
+
+---
+*Optimized for Raspberry Pi 5 - No sudo required - Clean, minimal dependencies*
 
 **Basic Movement:**
 - `w/s` - Move forward/backward

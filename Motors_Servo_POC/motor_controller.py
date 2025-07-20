@@ -1,9 +1,9 @@
 """
 Motor Controller Module
-Class for controlling DC motors using PCA9685 PWM driver with GPIO Zero
+Class for controlling DC motors using PCA9685 PWM driver
 """
 
-from pca9685_controller_gpiozero import PCA9685Controller
+from pca9685_controller_simple import PCA9685Controller
 
 
 class MotorController:

@@ -1,5 +1,18 @@
-# Xbox Controller Project Requirements
-pygame>=2.6.0
+# Xbox Controller Robot Control System Requirements
+# For use with existing virtual environment
 
-# For universal gamepad support
-# pygame handles both Xbox and PS4 controllers
+# Xbox controller input
+pygame
+
+# Core CircuitPython libraries (must be installed first)
+adafruit-blinka
+adafruit-circuitpython-busdevice
+
+# Adafruit CircuitPython libraries for PCA9685 and motor control
+adafruit-circuitpython-pca9685
+adafruit-circuitpython-motor
+
+# GPIO libraries for Raspberry Pi 5 (matching Motors_Servo_POC)
+lgpio
+RPi.GPIO
+gpiozero
