@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🎮 AI Bot Game Controller</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            touch-action: manipulation;
+        }
+
+        .mobile-controller {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+
+        /* Header - Compact for mobile */
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 15px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            font-size: 1.2em;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .connection-status {
+            position: absolute;
+            top: 12px;
+            right: 15px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .connection-status.connected {
+            background: rgba(76, 175, 80, 0.8);
+        }
+
+        .connection-status.disconnected {
+            background: rgba(244, 67, 54, 0.8);
+        }
+
+        /* Video Section - Top */
+        .video-section {
+            flex: 0 0 30vh;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+        }
+
+        .video-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 15px;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .video-stream {
+            flex: 1;
+            width: 100%;
+            object-fit: cover;
+            background: #000;
+        }
+
+        .detection-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9em;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 40px;
+            height: 20px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #666;
+            transition: .3s;
+            border-radius: 20px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider {
+            background-color: #4CAF50;
+        }
+
+        input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+
+        .status-info {
+            font-size: 0.8em;
+            opacity: 0.9;
+        }
+
+        /* Controls Section - Main Game Controller Area */
+        .controls-section {
+            flex: 1;
+            display: grid;
+            grid-template-areas: 
+                "dpad   camera camera speed"
+                "dpad   camera camera speed"
+                "extra  camera camera extra2";
+            grid-template-columns: 1fr 2fr 2fr 1fr;
+            grid-template-rows: 1fr 1fr 0.5fr;
+            gap: 10px;
+            padding: 15px;
+            background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(33, 150, 243, 0.1) 100%);
+        }
+
+        /* D-Pad (Movement Controls) */
+        .dpad-container {
+            grid-area: dpad;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dpad {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin-bottom: 10px;
+        }
+
+        .dpad-btn {
+            position: absolute;
+            background: linear-gradient(145deg, #4CAF50, #45a049);
+            border: none;
+            color: white;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .dpad-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+
+        .dpad-up {
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 35px;
+        }
+
+        .dpad-down {
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 35px;
+        }
+
+        .dpad-left {
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 35px;
+            height: 40px;
+        }
+
+        .dpad-right {
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 35px;
+            height: 40px;
+        }
+
+        .dpad-center {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(145deg, #f44336, #d32f2f);
+            border-radius: 50%;
+        }
+
+        .strafe-controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 5px;
+        }
+
+        .strafe-btn {
+            background: linear-gradient(145deg, #2196F3, #1976D2);
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .strafe-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Camera Control Joystick */
+        .camera-container {
+            grid-area: camera;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .joystick-container {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 70%, transparent 100%);
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.2);
+            margin-bottom: 15px;
+            touch-action: none;
+        }
+
+        .joystick-knob {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(145deg, #FF9800, #F57C00);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            transition: all 0.1s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border: 3px solid rgba(255,255,255,0.3);
+            touch-action: none;
+        }
+
+        .joystick-knob:active {
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        .camera-presets {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            width: 100%;
+            max-width: 200px;
+        }
+
+        .preset-btn {
+            background: linear-gradient(145deg, #9C27B0, #7B1FA2);
+            border: none;
+            color: white;
+            padding: 8px 4px;
+            border-radius: 8px;
+            font-size: 0.7em;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .preset-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Speed Control */
+        .speed-container {
+            grid-area: speed;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0 10px;
+        }
+
+        .speed-slider-container {
+            writing-mode: bt-lr; /* IE */
+            writing-mode: vertical-lr; /* Standard */
+            height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .speed-slider {
+            writing-mode: bt-lr; /* IE */
+            writing-mode: vertical-lr; /* Standard */
+            width: 200px;
+            height: 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            outline: none;
+            transform: rotate(-90deg);
+            -webkit-appearance: none;
+        }
+
+        .speed-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #FF5722, #D84315);
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .speed-display {
+            text-align: center;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        .speed-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #FF5722;
+            display: block;
+        }
+
+        /* Extra Controls */
+        .extra-controls {
+            grid-area: extra;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .extra-controls2 {
+            grid-area: extra2;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .extra-btn {
+            background: linear-gradient(145deg, #607D8B, #455A64);
+            border: none;
+            color: white;
+            padding: 10px 8px;
+            border-radius: 8px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: all 0.1s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .extra-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Bottom Status Bar */
+        .status-bar {
+            flex: 0 0 60px;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 10px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .status-item {
+            text-align: center;
+            font-size: 0.8em;
+        }
+
+        .status-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #4CAF50;
+            display: block;
+        }
+
+        .status-label {
+            opacity: 0.7;
+            margin-top: 2px;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 480px) {
+            .controls-section {
+                grid-template-columns: 1fr 1.5fr 1.5fr 1fr;
+                padding: 10px;
+                gap: 8px;
+            }
+
+            .dpad {
+                width: 100px;
+                height: 100px;
+            }
+
+            .joystick-container {
+                width: 120px;
+                height: 120px;
+            }
+
+            .joystick-knob {
+                width: 50px;
+                height: 50px;
+            }
+        }
+
+        @media (orientation: landscape) and (max-height: 600px) {
+            .video-section {
+                flex: 0 0 25vh;
+            }
+            
+            .header {
+                padding: 5px 15px;
+            }
+            
+            .header h1 {
+                font-size: 1em;
+            }
+        }
+
+        /* Haptic feedback simulation */
+        .vibrate {
+            animation: vibrate 0.1s linear;
+        }
+
+        @keyframes vibrate {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-2px); }
+            75% { transform: translateX(2px); }
+        }
+
+
+    </style>
+</head>
+<body>
+    <div class="mobile-controller">
+        <!-- Header -->
+        <div class="header">
+            <div class="connection-status" id="connectionStatus">●</div>
+            <h1>🎮 <span>AI Bot Controller</span> 🤖</h1>
+        </div>
+
+        <!-- Video Section -->
+        <div class="video-section">
+            <div class="video-controls">
+                <div class="detection-toggle">
+                    <span>AI Detection</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="detectionToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="status-info">
+                    <span id="detectionCount">0</span> objects detected
+                </div>
+            </div>
+            <img src="/video_feed" alt="Video Stream" class="video-stream" id="videoStream">
+        </div>
+
+        <!-- Main Controls Section -->
+        <div class="controls-section">
+            <!-- D-Pad for Movement -->
+            <div class="dpad-container">
+                <div class="dpad">
+                    <button class="dpad-btn dpad-up" id="forwardBtn">⬆</button>
+                    <button class="dpad-btn dpad-down" id="backwardBtn">⬇</button>
+                    <button class="dpad-btn dpad-left" id="leftBtn">⬅</button>
+                    <button class="dpad-btn dpad-right" id="rightBtn">➡</button>
+                    <button class="dpad-btn dpad-center" id="stopBtn">⏹</button>
+                </div>
+                <div class="strafe-controls">
+                    <button class="strafe-btn" id="strafeLeftBtn">↖ L</button>
+                    <button class="strafe-btn" id="strafeRightBtn">↗ R</button>
+                </div>
+            </div>
+
+            <!-- Camera Joystick -->
+            <div class="camera-container">
+                <div class="joystick-container" id="joystickContainer">
+                    <div class="joystick-knob" id="joystickKnob"></div>
+                </div>
+                <div class="camera-presets">
+                    <button class="preset-btn" data-pan="90" data-tilt="45">⬆ Up</button>
+                    <button class="preset-btn" data-pan="0" data-tilt="90">⬅ Left</button>
+                    <button class="preset-btn" data-pan="90" data-tilt="90">⚫ Center</button>
+                    <button class="preset-btn" data-pan="180" data-tilt="90">➡ Right</button>
+                    <button class="preset-btn" data-pan="90" data-tilt="135">⬇ Down</button>
+                </div>
+            </div>
+
+            <!-- Speed Control -->
+            <div class="speed-container">
+                <div class="speed-slider-container">
+                    <input type="range" min="10" max="100" value="50" class="speed-slider" id="speedSlider">
+                </div>
+                <div class="speed-display">
+                    <span class="speed-value" id="speedValue">50</span>
+                    <span>SPEED</span>
+                </div>
+            </div>
+
+            <!-- Extra Controls -->
+            <div class="extra-controls">
+                <button class="extra-btn" id="smoothToggle">🎯 Smooth</button>
+                <button class="extra-btn" id="autoMode">🤖 Auto</button>
+            </div>
+
+            <div class="extra-controls2">
+                <button class="extra-btn" id="lightToggle">💡 Light</button>
+                <button class="extra-btn" id="hornBtn">📢 Horn</button>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-value" id="robotStatus">●</span>
+                <span class="status-label">Robot</span>
+            </div>
+            <div class="status-item">
+                <span class="status-value" id="batteryStatus">🔋</span>
+                <span class="status-label">Battery</span>
+            </div>
+            <div class="status-item">
+                <span class="status-value" id="signalStatus">📶</span>
+                <span class="status-label">Signal</span>
+            </div>
+            <div class="status-item">
+                <span class="status-value" id="temperatureStatus">--°</span>
+                <span class="status-label">Temp</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Socket.IO connection
+        const socket = io();
+        
+        // Global variables
+        let currentSpeed = 50;
+        let smoothMovement = true;
+        let isJoystickActive = false;
+        let joystickCenter = { x: 0, y: 0 };
+        let lastCameraPosition = { pan: 90, tilt: 90 };
+
+        // DOM elements
+        const connectionStatus = document.getElementById('connectionStatus');
+        const detectionToggle = document.getElementById('detectionToggle');
+        const detectionCount = document.getElementById('detectionCount');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const robotStatus = document.getElementById('robotStatus');
+        const temperatureStatus = document.getElementById('temperatureStatus');
+        const joystickContainer = document.getElementById('joystickContainer');
+        const joystickKnob = document.getElementById('joystickKnob');
+        const smoothToggle = document.getElementById('smoothToggle');
+
+        // Movement buttons
+        const buttons = {
+            forward: document.getElementById('forwardBtn'),
+            backward: document.getElementById('backwardBtn'),
+            left: document.getElementById('leftBtn'),
+            right: document.getElementById('rightBtn'),
+            strafeLeft: document.getElementById('strafeLeftBtn'),
+            strafeRight: document.getElementById('strafeRightBtn'),
+            stop: document.getElementById('stopBtn')
+        };
+
+        // Initialize joystick center
+        function initJoystick() {
+            const rect = joystickContainer.getBoundingClientRect();
+            joystickCenter.x = rect.width / 2;
+            joystickCenter.y = rect.height / 2;
+        }
+
+        // Socket event handlers
+        socket.on('connect', function() {
+            connectionStatus.textContent = '🟢';
+            connectionStatus.className = 'connection-status connected';
+            vibrate(100);
+        });
+
+        socket.on('disconnect', function() {
+            connectionStatus.textContent = '🔴';
+            connectionStatus.className = 'connection-status disconnected';
+        });
+
+        socket.on('sensor_data', function(data) {
+            temperatureStatus.textContent = data.temperature + '°';
+        });
+
+        socket.on('status_update', function(data) {
+            detectionCount.textContent = data.detection_count;
+            robotStatus.textContent = data.robot.connected ? (data.robot.moving ? '🏃' : '✅') : '❌';
+        });
+
+        socket.on('detections', function(detections) {
+            // Visual feedback for detections
+            if (detections.length > 0) {
+                document.body.classList.add('vibrate');
+                setTimeout(() => document.body.classList.remove('vibrate'), 100);
+            }
+        });
+
+        // Control functions
+        function sendRobotCommand(command, speed = null, duration = null) {
+            const data = { command: command };
+            if (speed !== null) data.speed = speed;
+            if (duration !== null) data.duration = duration;
+            
+            socket.emit('robot_command', data);
+            vibrate(50); // Haptic feedback
+        }
+
+        function sendCameraCommand(command, angle = null, pan_angle = null, tilt_angle = null) {
+            const data = { 
+                command: command,
+                smooth: smoothMovement,
+                duration: 0.5 // Faster for joystick control
+            };
+            
+            if (angle !== null) data.angle = angle;
+            if (pan_angle !== null) data.pan_angle = pan_angle;
+            if (tilt_angle !== null) data.tilt_angle = tilt_angle;
+            
+            socket.emit('camera_command', data);
+        }
+
+        // Vibration/haptic feedback
+        function vibrate(duration = 50) {
+            if (navigator.vibrate) {
+                navigator.vibrate(duration);
+            }
+        }
+
+        // Button event listeners with haptic feedback
+        Object.keys(buttons).forEach(key => {
+            const button = buttons[key];
+            
+            // Touch events for better mobile responsiveness
+            button.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                this.classList.add('vibrate');
+                
+                if (key === 'stop') {
+                    sendRobotCommand('stop');
+                } else {
+                    sendRobotCommand(key === 'strafeLeft' ? 'strafe_left' : 
+                                   key === 'strafeRight' ? 'strafe_right' : key, currentSpeed);
+                }
+            });
+
+            button.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                this.classList.remove('vibrate');
+            });
+
+            // Click events as fallback
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (key === 'stop') {
+                    sendRobotCommand('stop');
+                } else {
+                    sendRobotCommand(key === 'strafeLeft' ? 'strafe_left' : 
+                                   key === 'strafeRight' ? 'strafe_right' : key, currentSpeed);
+                }
+            });
+        });
+
+        // Joystick control for camera
+        function initJoystickControl() {
+            let isDragging = false;
+            let startPosition = { x: 0, y: 0 };
+
+            function handleStart(e) {
+                isDragging = true;
+                isJoystickActive = true;
+                
+                const touch = e.touches ? e.touches[0] : e;
+                const rect = joystickContainer.getBoundingClientRect();
+                startPosition.x = touch.clientX - rect.left;
+                startPosition.y = touch.clientY - rect.top;
+                
+                joystickKnob.style.transition = 'none';
+                vibrate(30);
+            }
+
+            function handleMove(e) {
+                if (!isDragging) return;
+                e.preventDefault();
+
+                const touch = e.touches ? e.touches[0] : e;
+                const rect = joystickContainer.getBoundingClientRect();
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const maxRadius = centerX - 30; // knob radius
+
+                let deltaX = touch.clientX - rect.left - centerX;
+                let deltaY = touch.clientY - rect.top - centerY;
+
+                // Constrain to circle
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                if (distance > maxRadius) {
+                    deltaX = (deltaX / distance) * maxRadius;
+                    deltaY = (deltaY / distance) * maxRadius;
+                }
+
+                // Update knob position
+                joystickKnob.style.transform = `translate(${centerX + deltaX - 30}px, ${centerY + deltaY - 30}px)`;
+
+                // Convert to camera angles
+                const panAngle = Math.round(90 + (deltaX / maxRadius) * 90); // 0-180
+                const tiltAngle = Math.round(90 + (deltaY / maxRadius) * 90); // 0-180
+
+                // Constrain angles
+                const constrainedPan = Math.max(0, Math.min(180, panAngle));
+                const constrainedTilt = Math.max(0, Math.min(180, tiltAngle));
+
+                // Only send command if position changed significantly
+                if (Math.abs(constrainedPan - lastCameraPosition.pan) > 2 || 
+                    Math.abs(constrainedTilt - lastCameraPosition.tilt) > 2) {
+                    
+                    sendCameraCommand('position', null, constrainedPan, constrainedTilt);
+                    lastCameraPosition.pan = constrainedPan;
+                    lastCameraPosition.tilt = constrainedTilt;
+                }
+            }
+
+            function handleEnd(e) {
+                if (!isDragging) return;
+                isDragging = false;
+                isJoystickActive = false;
+
+                // Snap back to center with animation
+                joystickKnob.style.transition = 'transform 0.3s ease-out';
+                joystickKnob.style.transform = 'translate(-50%, -50%)';
+                
+                vibrate(20);
+            }
+
+            // Touch events
+            joystickContainer.addEventListener('touchstart', handleStart);
+            document.addEventListener('touchmove', handleMove);
+            document.addEventListener('touchend', handleEnd);
+
+            // Mouse events for desktop testing
+            joystickContainer.addEventListener('mousedown', handleStart);
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('mouseup', handleEnd);
+        }
+
+        // Speed slider
+        speedSlider.addEventListener('input', function() {
+            currentSpeed = parseInt(this.value);
+            speedValue.textContent = currentSpeed;
+        });
+
+        // Preset camera positions
+        document.querySelectorAll('.preset-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const panAngle = parseInt(this.dataset.pan);
+                const tiltAngle = parseInt(this.dataset.tilt);
+                
+                sendCameraCommand('position', null, panAngle, tiltAngle);
+                lastCameraPosition.pan = panAngle;
+                lastCameraPosition.tilt = tiltAngle;
+                
+                vibrate(100);
+            });
+        });
+
+        // Smooth movement toggle
+        smoothToggle.addEventListener('click', function() {
+            smoothMovement = !smoothMovement;
+            this.style.background = smoothMovement ? 
+                'linear-gradient(145deg, #4CAF50, #45a049)' : 
+                'linear-gradient(145deg, #607D8B, #455A64)';
+            this.textContent = smoothMovement ? '🎯 Smooth' : '⚡ Fast';
+            vibrate(80);
+        });
+
+        // Detection toggle
+        detectionToggle.addEventListener('change', function() {
+            socket.emit('detection_toggle', { enabled: this.checked });
+            vibrate(60);
+        });
+
+        // Auto mode and other extra buttons
+        document.getElementById('autoMode').addEventListener('click', function() {
+            // TODO: Implement auto mode
+            vibrate(100);
+        });
+
+        document.getElementById('lightToggle').addEventListener('click', function() {
+            // TODO: Implement light toggle
+            vibrate(50);
+        });
+
+        document.getElementById('hornBtn').addEventListener('click', function() {
+            // TODO: Implement horn
+            vibrate(200);
+        });
+
+        // Keyboard controls for desktop testing
+        document.addEventListener('keydown', function(event) {
+            if (isJoystickActive) return; // Don't interfere with joystick
+
+            const speed = currentSpeed;
+            
+            switch(event.key.toLowerCase()) {
+                case 'w':
+                case 'arrowup':
+                    sendRobotCommand('forward', speed, 0.1);
+                    break;
+                case 's':
+                case 'arrowdown':
+                    sendRobotCommand('backward', speed, 0.1);
+                    break;
+                case 'a':
+                case 'arrowleft':
+                    sendRobotCommand('left', speed, 0.1);
+                    break;
+                case 'd':
+                case 'arrowright':
+                    sendRobotCommand('right', speed, 0.1);
+                    break;
+                case 'q':
+                    sendRobotCommand('strafe_left', speed, 0.1);
+                    break;
+                case 'e':
+                    sendRobotCommand('strafe_right', speed, 0.1);
+                    break;
+                case ' ':
+                    event.preventDefault();
+                    sendRobotCommand('stop');
+                    break;
+            }
+        });
+
+        // Prevent scrolling and zooming
+        document.addEventListener('touchmove', function(e) {
+            if (e.target.closest('.joystick-container') || e.target.closest('.dpad')) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        document.addEventListener('gesturestart', function(e) {
+            e.preventDefault();
+        });
+
+        // Initialize everything
+        window.addEventListener('load', function() {
+            initJoystick();
+            initJoystickControl();
+            
+            // Set initial values
+            speedValue.textContent = currentSpeed;
+            
+            console.log('🎮 Mobile AI Bot Controller initialized!');
+        });
+
+        // Handle orientation changes
+        window.addEventListener('orientationchange', function() {
+            setTimeout(() => {
+                initJoystick();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

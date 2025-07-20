@@ -1,0 +1,5 @@
+# Xbox Controller Project Requirements
+pygame>=2.6.0
+
+# For universal gamepad support
+# pygame handles both Xbox and PS4 controllers
