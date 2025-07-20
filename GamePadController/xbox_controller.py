@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
-Universal Gamepad Controller
-Supports both PS4 and Xbox controllers using pygame
+Xbox 360 Controller Test with Integrated Universal Gamepad Controller
 """
 import pygame
 import time
 import threading
 from typing import Dict, Callable, Optional, Tuple
 
-class UniversalGamepadController:
+class XboxGamepadController:
     """Universal gamepad controller using pygame for cross-platform support"""
     
     def __init__(self):
@@ -33,8 +32,8 @@ class UniversalGamepadController:
         
         # Callbacks
         self.callbacks = {
-            'on_button_press': {},
-            'on_button_release': {},
+            'on_press': {},
+            'on_release': {},
             'on_analog_change': {},
             'on_exit': None
         }
@@ -164,10 +163,6 @@ class UniversalGamepadController:
         """Register a callback for analog input changes"""
         self.callbacks['on_analog_change'][analog_input] = callback
     
-    def register_exit_callback(self, callback: Callable):
-        """Register callback for exit event"""
-        self.callbacks['on_exit'] = callback
-    
     def _call_callback(self, callback_type: str, button: str, *args):
         """Call registered callback if it exists"""
         if (callback_type in self.callbacks and 
@@ -207,10 +202,8 @@ class UniversalGamepadController:
                     self.button_states[button_name] = current_state
                     
                     if current_state:  # Button pressed
-                        print(f"Button pressed: {button_name}")
                         self._call_callback('on_press', button_name)
                     else:  # Button released
-                        print(f"Button released: {button_name}")
                         self._call_callback('on_release', button_name)
             
             # Process D-pad (hat) events
@@ -225,7 +218,6 @@ class UniversalGamepadController:
                             old_button = self.hat_map[self.current_hat_state]
                             if old_button in self.button_states and self.button_states[old_button]:
                                 self.button_states[old_button] = False
-                                print(f"D-pad released: {old_button}")
                                 self._call_callback('on_release', old_button)
                     
                     # Press the new D-pad button if any
@@ -233,7 +225,6 @@ class UniversalGamepadController:
                         if hat_value in self.hat_map:
                             new_button = self.hat_map[hat_value]
                             self.button_states[new_button] = True
-                            print(f"D-pad pressed: {new_button}")
                             self._call_callback('on_press', new_button)
                     
                     # Update current hat state
@@ -315,49 +306,64 @@ class UniversalGamepadController:
         self.running = False
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=1.0)
-    
-    def get_button_state(self, button: str) -> bool:
-        """Get current state of a button"""
-        return self.button_states.get(button, False)
-    
-    def get_analog_value(self, analog_input: str):
-        """Get current value of analog input"""
-        return self.analog_values.get(analog_input, 0.0)
 
+def main():
+    print("=== Xbox 360 Controller Test ===")
+    
+    controller = XboxGamepadController()
+    
+    if not controller.connect():
+        print("Failed to connect to controller!")
+        return
+    
+    # Register button callbacks
+    def on_button_event(button_name, event_type):
+        print(f"🎮 {button_name.upper()} {event_type}!")
+    
+    # Face buttons (Xbox: A, B, X, Y)
+    for button in ['a', 'b', 'x', 'y']:
+        controller.register_button_callback(button, lambda btn=button: on_button_event(btn, "PRESSED"), 'press')
+        controller.register_button_callback(button, lambda btn=button: on_button_event(btn, "RELEASED"), 'release')
+    
+    # Shoulder buttons (Xbox: LB, RB)
+    for button in ['lb', 'rb']:
+        controller.register_button_callback(button, lambda btn=button: on_button_event(btn, "PRESSED"), 'press')
+        controller.register_button_callback(button, lambda btn=button: on_button_event(btn, "RELEASED"), 'release')
+    
+    # D-pad buttons
+    for button in ['dpad_up', 'dpad_down', 'dpad_left', 'dpad_right']:
+        controller.register_button_callback(button, lambda btn=button: on_button_event(btn, "PRESSED"), 'press')
+        controller.register_button_callback(button, lambda btn=button: on_button_event(btn, "RELEASED"), 'release')
+    
+    # Analog callbacks
+    def on_stick_change(stick_name, value):
+        x, y = value
+        if abs(x) > 0.1 or abs(y) > 0.1:  # Only show significant movement
+            print(f"🕹️  {stick_name}: ({x:.2f}, {y:.2f})")
+    
+    def on_trigger_change(trigger_name, value):
+        if value > 0.1:  # Only show when pressed
+            print(f"🔫 {trigger_name}: {value:.2f}")
+    
+    controller.register_analog_callback('left_stick', lambda val: on_stick_change('Left Stick', val))
+    controller.register_analog_callback('right_stick', lambda val: on_stick_change('Right Stick', val))
+    controller.register_analog_callback('left_trigger', lambda val: on_trigger_change('Left Trigger', val))
+    controller.register_analog_callback('right_trigger', lambda val: on_trigger_change('Right Trigger', val))
+    
+    print(f"\\n🎮 Controller connected: {controller.controller_type}")
+    print("\\n=== Button Mapping ===")
+    print("Face buttons: A, B, X, Y")
+    print("Shoulder buttons: LB, RB") 
+    print("D-pad: UP, DOWN, LEFT, RIGHT")
+    print("Analog: Left/Right sticks, Left/Right triggers")
+    print("\\nPress buttons to test detection...")
+    print("Press Ctrl+C to exit\\n")
+    
+    try:
+        controller.listen()
+    except KeyboardInterrupt:
+        print("\\n👋 Goodbye!")
+        controller.stop()
 
 if __name__ == "__main__":
-    """Test the universal controller"""
-    
-    def on_button_press(button_name):
-        print(f"Callback: {button_name} pressed!")
-    
-    def on_button_release(button_name):
-        print(f"Callback: {button_name} released!")
-    
-    def on_analog_change(analog_name, value):
-        print(f"Callback: {analog_name} = {value}")
-    
-    def on_exit():
-        print("Exit callback called!")
-    
-    controller = UniversalGamepadController()
-    
-    if controller.connect():
-        # Register some test callbacks
-        controller.register_button_callback('a', on_button_press, 'press')
-        controller.register_button_callback('b', on_button_press, 'press')
-        controller.register_button_callback('x', on_button_press, 'press')
-        controller.register_button_callback('y', on_button_press, 'press')
-        controller.register_button_callback('lb', on_button_press, 'press')
-        controller.register_button_callback('rb', on_button_press, 'press')
-        
-        controller.register_analog_callback('left_stick', on_analog_change)
-        controller.register_analog_callback('right_stick', on_analog_change)
-        controller.register_analog_callback('left_trigger', on_analog_change)
-        controller.register_analog_callback('right_trigger', on_analog_change)
-        
-        controller.register_exit_callback(on_exit)
-        
-        controller.listen()
-    else:
-        print("Failed to connect to controller")
+    main()

@@ -27,4 +27,4 @@ source venv/bin/activate
 
 # Run the demo controller reader
 echo "🚀 Launching controller demo..."
-python3 xbox_demo.py
+python3 xbox_controller.py
