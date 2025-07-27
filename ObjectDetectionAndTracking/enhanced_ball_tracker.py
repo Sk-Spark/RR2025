@@ -26,8 +26,7 @@ class EnhancedBallTracker:
             try:
                 self.motor_controller = MotorController(
                     motor_config=config.MOTOR_CONFIG,
-                    i2c_address=config.PCA9685_ADDRESS,
-                    frequency=config.MOTOR_PWM_FREQUENCY
+                    pca_controller=self.servo_controller.pca  # Share the PCA9685 instance!
                 )
                 print("Motor controller initialized - robot will follow ball")
             except Exception as e:

@@ -133,8 +133,8 @@ class BallTracker:
                             detection = self.ball_detector.last_detection
                 
                 if should_detect:
-                    detection = self.ball_detector.detect(frame)
-                
+                    detection = self.ball_detector.detect(frame) # return value (center_x, center_y, radius)
+
                 if detection:
                     self._process_detection(detection, frame.shape)
                 else:

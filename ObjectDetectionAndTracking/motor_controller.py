@@ -1,46 +1,53 @@
 """
 Motor Controller Module for Ball Tracking Robot
-Controls 4 mecanum wheel motors using PCA9685 PWM driver for following the ball
+Controls 4 mecanum wheel motors using shared PCA9685 PWM driver for following the ball
 """
 
-import board
-import busio
-from adafruit_pca9685 import PCA9685
 import time
+from pca9685_controller import PCA9685Controller
 
 
 class MotorController:
-    """Controller for DC motors using PCA9685 for ball following robot"""
+    """Controller for DC motors using shared PCA9685 for ball following robot"""
     
-    def __init__(self, motor_config, i2c_address=0x40, frequency=1000):
+    def __init__(self, motor_config, pca_controller=None, i2c_address=0x40, frequency=1000):
         """
-        Initialize motor controller
+        Initialize motor controller with shared PCA9685 instance
         
         Args:
-            motor_config (dict): Motor configuration dictionary
-            i2c_address (int): I2C address of PCA9685 (default: 0x40)
-            frequency (int): PWM frequency in Hz (default: 1000Hz for motors)
+            motor_config (dict): Motor configuration dictionary  
+            pca_controller: Shared PCA9685 controller instance (optional)
+            i2c_address (int): I2C address of PCA9685 (default: 0x40) - only used if pca_controller is None
+            frequency (int): PWM frequency in Hz (default: 1000Hz for motors) - only used if pca_controller is None
         """
         try:
-            print(f"Initializing Motor Controller at I2C address {hex(i2c_address)}...")
+            print(f"Initializing Motor Controller...")
             
-            # Initialize I2C bus
-            self.i2c = busio.I2C(board.SCL, board.SDA)
-            
-            # Initialize PCA9685 for motors
-            self.pca = PCA9685(self.i2c, address=i2c_address)
-            self.pca.frequency = frequency
+            if pca_controller:
+                # Use shared PCA9685 instance from servo controller
+                print("Using shared PCA9685 controller for motors")
+                self.pca_controller = pca_controller
+                self.owns_pca = False
+            else:
+                # Create own PCA9685 instance (fallback - not recommended)
+                print(f"Creating new PCA9685 instance at I2C address {hex(i2c_address)}...")
+                self.pca_controller = PCA9685Controller(i2c_address=i2c_address, frequency=frequency)
+                self.owns_pca = True
             
             self.motors = motor_config
             
             # Initialize all motors to stopped state
             self.stop_all_motors()
             
-            print(f"Motor controller initialized with {len(self.motors)} motors at {frequency}Hz")
+            print(f"Motor controller initialized with {len(self.motors)} motors")
             
         except Exception as e:
             print(f"Error initializing motor controller: {e}")
             raise
+    
+    def _set_pwm(self, channel, duty_cycle):
+        """Set PWM duty cycle for a channel using shared PCA9685"""
+        self.pca_controller.set_pwm(channel, duty_cycle)
     
     def set_motor_speed(self, motor_name, speed, direction="forward"):
         """
@@ -61,15 +68,15 @@ class MotorController:
         duty_cycle = int((speed / 100) * 65535)
         
         # Set PWM for motor enable/speed
-        self.pca.channels[motor["channel"]].duty_cycle = duty_cycle
+        self._set_pwm(motor["channel"], duty_cycle)
         
         # Set direction pins
         if direction == "forward":
-            self.pca.channels[motor["in1"]].duty_cycle = 65535  # High
-            self.pca.channels[motor["in2"]].duty_cycle = 0      # Low
+            self._set_pwm(motor["in1"], 65535)  # High
+            self._set_pwm(motor["in2"], 0)      # Low
         elif direction == "backward":
-            self.pca.channels[motor["in1"]].duty_cycle = 0      # Low
-            self.pca.channels[motor["in2"]].duty_cycle = 65535  # High
+            self._set_pwm(motor["in1"], 0)      # Low
+            self._set_pwm(motor["in2"], 65535)  # High
         else:
             raise ValueError(f"Invalid direction: {direction}. Use 'forward' or 'backward'")
     
@@ -86,9 +93,9 @@ class MotorController:
         motor = self.motors[motor_name]
         
         # Set all channels to 0
-        self.pca.channels[motor["channel"]].duty_cycle = 0
-        self.pca.channels[motor["in1"]].duty_cycle = 0
-        self.pca.channels[motor["in2"]].duty_cycle = 0
+        self._set_pwm(motor["channel"], 0)
+        self._set_pwm(motor["in1"], 0)
+        self._set_pwm(motor["in2"], 0)
     
     def stop_all_motors(self):
         """Stop all motors"""
@@ -224,5 +231,10 @@ class MotorController:
     def cleanup(self):
         """Clean up resources"""
         self.stop_all_motors()
-        if hasattr(self, 'pca'):
-            self.pca.deinit()
+        
+        if self.owns_pca and hasattr(self, 'pca'):
+            # Only deinitialize if we own the PCA9685 instance
+            try:
+                self.pca.deinit()
+            except:
+                pass

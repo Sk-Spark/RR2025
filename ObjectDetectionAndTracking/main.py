@@ -78,12 +78,12 @@ def initialize_system():
         if config.ENABLE_MOTOR_FOLLOWING:
             try:
                 logger.info("Initializing motor controller...")
+                # Pass the servo controller's PCA9685 instance to motor controller
                 motor_controller = MotorController(
                     motor_config=config.MOTOR_CONFIG,
-                    i2c_address=config.PCA9685_ADDRESS,
-                    frequency=config.MOTOR_PWM_FREQUENCY
+                    pca_controller=servo_controller.pca  # Share the PCA9685 instance!
                 )
-                logger.info("Motor controller initialized - robot will follow ball")
+                logger.info("Motor controller initialized with shared PCA9685 - robot will follow ball")
             except Exception as e:
                 logger.warning(f"Could not initialize motor controller: {e}")
                 logger.warning("Camera tracking will work, but robot won't move")
