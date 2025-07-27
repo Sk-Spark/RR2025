@@ -8,7 +8,6 @@ import time
 import threading
 import logging
 import numpy as np
-import cv2
 from typing import Optional, Tuple
 import config
 
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 class BallTracker:
     """Main ball tracking system coordinator"""
     
-    def __init__(self, camera_manager, servo_controller, ball_detector, motor_controller=None):
+    def __init__(self, camera_manager, servo_controller, ball_detector):
         """
         Initialize ball tracker
         
@@ -26,12 +25,10 @@ class BallTracker:
             camera_manager: CameraManager instance
             servo_controller: BallTrackingServoController instance
             ball_detector: BallDetector instance
-            motor_controller: MotorController instance (optional)
         """
         self.camera_manager = camera_manager
         self.servo_controller = servo_controller
         self.ball_detector = ball_detector
-        self.motor_controller = motor_controller
         
         # Tracking state
         self.tracking_active = False
@@ -51,10 +48,6 @@ class BallTracker:
         
         # Frame skipping optimization
         self.frame_skip_counter = 0
-        
-        # Motor control state
-        self.movement_timer = None
-        self.movement_active = False
         self.frame_skip_interval = getattr(config, 'FRAME_SKIP', 1) if getattr(config, 'USE_FRAME_SKIPPING', False) else 1
         
         logger.info(f"Ball tracker initialized with frame skip interval: {self.frame_skip_interval} (skipping {'enabled' if config.USE_FRAME_SKIPPING else 'disabled'})")
@@ -133,8 +126,8 @@ class BallTracker:
                             detection = self.ball_detector.last_detection
                 
                 if should_detect:
-                    detection = self.ball_detector.detect(frame) # return value (center_x, center_y, radius)
-
+                    detection = self.ball_detector.detect(frame)
+                
                 if detection:
                     self._process_detection(detection, frame.shape)
                 else:
@@ -193,10 +186,6 @@ class BallTracker:
             frame_height
         )
         
-        # Add motor control for robot following (if enabled)
-        if config.ENABLE_MOTOR_FOLLOWING and self.motor_controller:
-            self._track_with_motors(filtered_position[0], filtered_position[1], radius, frame_width, frame_height)
-        
         logger.debug(f"Ball detected at ({x}, {y}) radius={radius}")
     
     def _handle_no_detection(self):
@@ -223,91 +212,6 @@ class BallTracker:
         avg_y = sum(pos[1] for pos in recent_positions) / len(recent_positions)
         
         return (int(avg_x), int(avg_y))
-    
-    def _track_with_motors(self, ball_x, ball_y, ball_radius, frame_width, frame_height):
-        """
-        Handle robot movement to follow ball
-        
-        Args:
-            ball_x (int): Ball center X coordinate
-            ball_y (int): Ball center Y coordinate
-            ball_radius (int): Ball radius in pixels
-            frame_width (int): Frame width
-            frame_height (int): Frame height
-        """
-        if not self.motor_controller:
-            return
-        
-        # Calculate frame center
-        center_x = frame_width // 2
-        center_y = frame_height // 2
-        
-        # Calculate position errors
-        error_x = ball_x - center_x
-        error_y = ball_y - center_y
-        
-        # Calculate deadzone pixels
-        deadzone_x = frame_width * config.MOTOR_DEADZONE_X
-        deadzone_y = frame_height * config.MOTOR_DEADZONE_Y
-        
-        # Determine movement speeds
-        move_x = 0
-        move_y = 0
-        
-        # Horizontal movement (strafe left/right)
-        if abs(error_x) > deadzone_x:
-            move_x = int((error_x / center_x) * config.MOTOR_FOLLOW_SPEED)
-            move_x = max(-config.MOTOR_MAX_SPEED, min(config.MOTOR_MAX_SPEED, move_x))
-        
-        # Vertical movement (forward/backward based on ball size)
-        ball_area = 3.14159 * ball_radius * ball_radius  # Approximate ball area
-        ball_size_ratio = ball_area / (frame_width * frame_height)
-        
-        if ball_size_ratio < config.FOLLOW_DISTANCE_THRESHOLD:
-            # Ball is small/far - move forward
-            if abs(error_y) > deadzone_y:
-                move_y = config.MOTOR_FOLLOW_SPEED
-            else:
-                move_y = config.MOTOR_FOLLOW_SPEED // 2  # Slow forward movement
-        elif ball_size_ratio > config.FOLLOW_DISTANCE_THRESHOLD * 2:
-            # Ball is large/close - move backward
-            move_y = -config.MOTOR_FOLLOW_SPEED // 2
-        
-        # Execute movement if needed
-        if move_x != 0 or move_y != 0:
-            self._execute_movement(move_x, move_y)
-            logger.debug(f"Robot movement: X={move_x}, Y={move_y} (ball at {ball_x},{ball_y}, size_ratio={ball_size_ratio:.3f})")
-        else:
-            self._stop_movement_after_delay()
-    
-    def _execute_movement(self, move_x, move_y):
-        """Execute robot movement with timeout"""
-        if self.motor_controller:
-            self.motor_controller.mecanum_move(move_x, move_y, 0)
-            self.movement_active = True
-            
-            # Cancel existing timer
-            if self.movement_timer:
-                self.movement_timer.cancel()
-            
-            # Set new timer to stop movement after short delay
-            self.movement_timer = threading.Timer(0.5, self._stop_movement)
-            self.movement_timer.start()
-    
-    def _stop_movement_after_delay(self):
-        """Stop movement after a delay if no new commands"""
-        if not self.movement_timer:
-            self.movement_timer = threading.Timer(0.2, self._stop_movement)
-            self.movement_timer.start()
-    
-    def _stop_movement(self):
-        """Stop robot movement"""
-        if self.motor_controller and self.movement_active:
-            self.motor_controller.stop_all_motors()
-            self.movement_active = False
-        if self.movement_timer:
-            self.movement_timer.cancel()
-            self.movement_timer = None
     
     def _update_performance_metrics(self, processing_time: float):
         """Update performance tracking metrics"""
@@ -369,12 +273,6 @@ class BallTracker:
             cv2.putText(frame, f"Tracking: {'ON' if servo_status['tracking_active'] else 'OFF'}", 
                        (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 1)
             
-            # Draw motor status if enabled
-            if config.ENABLE_MOTOR_FOLLOWING and self.motor_controller:
-                motor_color = (0, 255, 0) if self.movement_active else (255, 255, 255)
-                cv2.putText(frame, f"Motors: {'ACTIVE' if self.movement_active else 'READY'}", 
-                           (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, motor_color, 1)
-            
         except Exception as e:
             logger.error(f"Error drawing servo status: {e}")
         
@@ -385,19 +283,19 @@ class BallTracker:
         try:
             # Draw detection count
             cv2.putText(frame, f"Detections: {self.detection_count}", 
-                       (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+                       (10, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
             
             # Draw average processing time
             if self.processing_times:
                 avg_time = sum(self.processing_times) / len(self.processing_times)
                 cv2.putText(frame, f"Proc: {avg_time*1000:.1f}ms", 
-                           (10, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+                           (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
             
             # Draw time since last detection
             if self.last_detection_time:
                 time_since = time.time() - self.last_detection_time
                 cv2.putText(frame, f"Last: {time_since:.1f}s", 
-                           (10, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+                           (10, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
             
         except Exception as e:
             logger.error(f"Error drawing tracking stats: {e}")
@@ -417,9 +315,7 @@ class BallTracker:
             'servos': servo_status,
             'detector_type': type(self.ball_detector).__name__,
             'last_detection_time': self.last_detection_time,
-            'detection_history_length': len(self.detection_history),
-            'motor_following': config.ENABLE_MOTOR_FOLLOWING,
-            'movement_active': self.movement_active
+            'detection_history_length': len(self.detection_history)
         }
         
         if self.processing_times:
@@ -432,17 +328,10 @@ class BallTracker:
         """Cleanup tracking system"""
         try:
             self.stop_tracking_system()
-            
-            # Stop any active motor movement
-            if self.motor_controller and self.movement_active:
-                self.motor_controller.stop_all_motors()
-                self.movement_active = False
-            
-            # Cancel movement timer
-            if self.movement_timer:
-                self.movement_timer.cancel()
-                self.movement_timer = None
-            
             logger.info("Ball tracker cleaned up")
         except Exception as e:
             logger.error(f"Error during tracker cleanup: {e}")
+
+
+# Import cv2 here to avoid circular imports
+import cv2
