@@ -1,0 +1,18 @@
+# Requirements for Ping Pong Ball Tracking System
+# Core dependencies
+flask>=2.3.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+picamera2>=0.3.12
+
+# Servo control dependencies
+adafruit-circuitpython-pca9685>=3.4.0
+adafruit-blinka>=8.20.0
+
+# Hailo dependencies (should be installed separately via hailo_python_installation.sh)
+# These are optional and will be imported conditionally
+# hailort
+# tappas_core_python_binding
+
+# System dependencies
+psutil>=5.9.0

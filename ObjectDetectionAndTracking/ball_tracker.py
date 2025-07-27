@@ -1,0 +1,310 @@
+"""
+Ball Tracking Core Module
+Integrates ball detection, servo control, and camera management
+Main tracking logic and coordination
+"""
+
+import time
+import threading
+import logging
+import numpy as np
+from typing import Optional, Tuple
+import config
+
+logger = logging.getLogger(__name__)
+
+
+class BallTracker:
+    """Main ball tracking system coordinator"""
+    
+    def __init__(self, camera_manager, servo_controller, ball_detector):
+        """
+        Initialize ball tracker
+        
+        Args:
+            camera_manager: CameraManager instance
+            servo_controller: BallTrackingServoController instance
+            ball_detector: BallDetector instance
+        """
+        self.camera_manager = camera_manager
+        self.servo_controller = servo_controller
+        self.ball_detector = ball_detector
+        
+        # Tracking state
+        self.tracking_active = False
+        self.tracking_thread = None
+        self.stop_tracking = False
+        
+        # Statistics
+        self.detection_count = 0
+        self.tracking_start_time = None
+        self.last_detection_time = None
+        self.detection_history = []
+        self.max_history_length = 10
+        
+        # Performance monitoring
+        self.processing_times = []
+        self.max_processing_times = 100
+        
+        logger.info("Ball tracker initialized")
+    
+    def start_tracking(self):
+        """Start the ball tracking system"""
+        if not self.tracking_active:
+            try:
+                # Start camera continuous capture
+                self.camera_manager.start_continuous_capture()
+                
+                # Start main tracking thread
+                self.tracking_active = True
+                self.stop_tracking = False
+                self.tracking_start_time = time.time()
+                self.tracking_thread = threading.Thread(target=self._tracking_loop, daemon=True)
+                self.tracking_thread.start()
+                
+                logger.info("Ball tracking system started")
+                
+            except Exception as e:
+                logger.error(f"Failed to start tracking: {e}")
+                self.stop_tracking_system()
+                raise
+    
+    def stop_tracking_system(self):
+        """Stop the ball tracking system"""
+        if self.tracking_active:
+            try:
+                # Stop tracking thread
+                self.stop_tracking = True
+                self.tracking_active = False
+                
+                if self.tracking_thread:
+                    self.tracking_thread.join(timeout=2.0)
+                
+                # Stop servo tracking
+                self.servo_controller.stop_tracking_mode()
+                
+                # Stop camera capture
+                self.camera_manager.stop_continuous_capture()
+                
+                logger.info("Ball tracking system stopped")
+                
+            except Exception as e:
+                logger.error(f"Error stopping tracking: {e}")
+    
+    def _tracking_loop(self):
+        """Main tracking loop"""
+        logger.info("Tracking loop started")
+        
+        while not self.stop_tracking and self.tracking_active:
+            try:
+                start_time = time.time()
+                
+                # Get latest frame
+                frame = self.camera_manager.get_latest_frame()
+                if frame is None:
+                    time.sleep(0.01)
+                    continue
+                
+                # Detect ball
+                detection = self.ball_detector.detect(frame)
+                
+                if detection:
+                    self._process_detection(detection, frame.shape)
+                else:
+                    self._handle_no_detection()
+                
+                # Update performance metrics
+                processing_time = time.time() - start_time
+                self._update_performance_metrics(processing_time)
+                
+                # Control loop timing
+                self._control_loop_timing(start_time)
+                
+            except Exception as e:
+                logger.error(f"Error in tracking loop: {e}")
+                time.sleep(0.1)
+        
+        logger.info("Tracking loop ended")
+    
+    def _process_detection(self, detection: Tuple[int, int, int], frame_shape: Tuple[int, int, int]):
+        """
+        Process a ball detection
+        
+        Args:
+            detection: Tuple of (x, y, radius)
+            frame_shape: Shape of the frame (height, width, channels)
+        """
+        x, y, radius = detection
+        frame_height, frame_width = frame_shape[:2]
+        
+        # Update detection statistics
+        self.detection_count += 1
+        self.last_detection_time = time.time()
+        
+        # Add to detection history
+        self.detection_history.append({
+            'timestamp': time.time(),
+            'position': (x, y),
+            'radius': radius
+        })
+        
+        # Limit history length
+        if len(self.detection_history) > self.max_history_length:
+            self.detection_history.pop(0)
+        
+        # Apply detection filtering/smoothing if needed
+        filtered_position = self._filter_detection((x, y))
+        
+        # Update servo target position
+        self.servo_controller.update_target_position(
+            filtered_position, 
+            (frame_width, frame_height)
+        )
+        
+        logger.debug(f"Ball detected at ({x}, {y}) radius={radius}")
+    
+    def _handle_no_detection(self):
+        """Handle case when no ball is detected"""
+        # Could implement prediction, search patterns, etc.
+        pass
+    
+    def _filter_detection(self, position: Tuple[int, int]) -> Tuple[int, int]:
+        """
+        Apply filtering to detection to reduce noise
+        
+        Args:
+            position: Raw detection position (x, y)
+            
+        Returns:
+            Filtered position (x, y)
+        """
+        if len(self.detection_history) < 2:
+            return position
+        
+        # Simple moving average filter
+        recent_positions = [det['position'] for det in self.detection_history[-3:]]
+        avg_x = sum(pos[0] for pos in recent_positions) / len(recent_positions)
+        avg_y = sum(pos[1] for pos in recent_positions) / len(recent_positions)
+        
+        return (int(avg_x), int(avg_y))
+    
+    def _update_performance_metrics(self, processing_time: float):
+        """Update performance tracking metrics"""
+        self.processing_times.append(processing_time)
+        
+        # Limit stored processing times
+        if len(self.processing_times) > self.max_processing_times:
+            self.processing_times.pop(0)
+    
+    def _control_loop_timing(self, start_time: float):
+        """Control loop timing to maintain consistent rate"""
+        target_loop_time = 1.0 / 30.0  # 30 Hz target
+        elapsed = time.time() - start_time
+        
+        if elapsed < target_loop_time:
+            time.sleep(target_loop_time - elapsed)
+    
+    def get_current_frame_with_overlay(self) -> Optional[np.ndarray]:
+        """
+        Get current frame with detection and tracking overlays
+        
+        Returns:
+            Frame with overlays, or None if no frame available
+        """
+        frame = self.camera_manager.get_latest_frame()
+        if frame is None:
+            return None
+        
+        # Draw UI elements
+        frame = self.camera_manager.draw_ui_elements(frame)
+        
+        # Get latest detection and draw it
+        if hasattr(self.ball_detector, 'last_detection') and self.ball_detector.last_detection:
+            frame = self.ball_detector.draw_detection(frame, self.ball_detector.last_detection)
+        
+        # Draw servo status
+        frame = self._draw_servo_status(frame)
+        
+        # Draw tracking statistics
+        frame = self._draw_tracking_stats(frame)
+        
+        return frame
+    
+    def _draw_servo_status(self, frame: np.ndarray) -> np.ndarray:
+        """Draw servo status on frame"""
+        try:
+            servo_status = self.servo_controller.get_status()
+            
+            # Draw servo positions
+            cv2.putText(frame, f"Pan: {servo_status['current_pan']:.1f}°", 
+                       (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            cv2.putText(frame, f"Tilt: {servo_status['current_tilt']:.1f}°", 
+                       (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            
+            # Draw tracking status
+            status_color = (0, 255, 0) if servo_status['tracking_active'] else (0, 0, 255)
+            cv2.putText(frame, f"Tracking: {'ON' if servo_status['tracking_active'] else 'OFF'}", 
+                       (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.6, status_color, 1)
+            
+        except Exception as e:
+            logger.error(f"Error drawing servo status: {e}")
+        
+        return frame
+    
+    def _draw_tracking_stats(self, frame: np.ndarray) -> np.ndarray:
+        """Draw tracking statistics on frame"""
+        try:
+            # Draw detection count
+            cv2.putText(frame, f"Detections: {self.detection_count}", 
+                       (10, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            
+            # Draw average processing time
+            if self.processing_times:
+                avg_time = sum(self.processing_times) / len(self.processing_times)
+                cv2.putText(frame, f"Proc: {avg_time*1000:.1f}ms", 
+                           (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            
+            # Draw time since last detection
+            if self.last_detection_time:
+                time_since = time.time() - self.last_detection_time
+                cv2.putText(frame, f"Last: {time_since:.1f}s", 
+                           (10, 170), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            
+        except Exception as e:
+            logger.error(f"Error drawing tracking stats: {e}")
+        
+        return frame
+    
+    def get_status(self) -> dict:
+        """Get comprehensive tracking system status"""
+        camera_status = self.camera_manager.get_status()
+        servo_status = self.servo_controller.get_status()
+        
+        status = {
+            'tracking_active': self.tracking_active,
+            'detection_count': self.detection_count,
+            'tracking_duration': time.time() - self.tracking_start_time if self.tracking_start_time else 0,
+            'camera': camera_status,
+            'servos': servo_status,
+            'detector_type': type(self.ball_detector).__name__,
+            'last_detection_time': self.last_detection_time,
+            'detection_history_length': len(self.detection_history)
+        }
+        
+        if self.processing_times:
+            status['avg_processing_time'] = sum(self.processing_times) / len(self.processing_times)
+            status['max_processing_time'] = max(self.processing_times)
+        
+        return status
+    
+    def cleanup(self):
+        """Cleanup tracking system"""
+        try:
+            self.stop_tracking_system()
+            logger.info("Ball tracker cleaned up")
+        except Exception as e:
+            logger.error(f"Error during tracker cleanup: {e}")
+
+
+# Import cv2 here to avoid circular imports
+import cv2
