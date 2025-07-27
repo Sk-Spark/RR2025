@@ -10,16 +10,17 @@ import cv2
 import time
 import threading
 
-# Camera Configuration Parameters
-CAMERA_WIDTH = 320
-CAMERA_HEIGHT = 320
+# Camera Configuration Parameters - Optimized for low latency
+CAMERA_WIDTH = 640          # Full resolution for better quality
+CAMERA_HEIGHT = 640         # Full resolution for better quality
 CAMERA_FORMAT = "RGB888"
 CAMERA_FPS = 30
 
-# Performance Optimization Parameters
-DETECTION_FPS = 5           # Reduce detection frequency from 10 to 5 FPS
-FRAME_SKIP = 3              # Process every 3rd frame for detection
-JPEG_QUALITY = 40           # Lower JPEG quality for faster encoding
+# Performance Optimization Parameters - Ultra-low latency settings
+DETECTION_FPS = 15          # Higher detection rate for responsiveness
+FRAME_SKIP = 1              # Process every frame for minimum latency
+JPEG_QUALITY = 25           # Optimized for speed while maintaining quality
+STREAM_BUFFER_SIZE = 1      # Minimal buffer for lower latency
 
 # Hailo Configuration - will be set dynamically from model
 HAILO_INPUT_SIZE = 640  # Default fallback
@@ -83,11 +84,13 @@ def init_camera():
         picam2 = Picamera2()
         config = picam2.create_video_configuration(
             main={"size": (CAMERA_WIDTH, CAMERA_HEIGHT), "format": CAMERA_FORMAT},
-            controls={"FrameRate": CAMERA_FPS}
+            controls={"FrameRate": CAMERA_FPS},
+            buffer_count=STREAM_BUFFER_SIZE  # Minimal buffering for low latency
         )
         picam2.configure(config)
         picam2.start()
         print(f"Camera initialized: {CAMERA_WIDTH}x{CAMERA_HEIGHT} {CAMERA_FORMAT} at {CAMERA_FPS} FPS")
+        print(f"Buffer count: {STREAM_BUFFER_SIZE} (ultra-low latency)")
         return picam2
     except Exception as e:
         print(f"Camera initialization failed: {e}")
@@ -96,18 +99,12 @@ def init_camera():
 picam2 = init_camera()
 
 def detection_thread():
-    """Background thread for Hailo detection with frame skipping"""
+    """Background thread for Hailo detection - no frame skipping for maximum responsiveness"""
     global current_frame, detections, detection_frame_count
     
     while True:
         try:
             if hailo_detector and current_frame is not None:
-                # Skip frames for better performance
-                detection_frame_count += 1
-                if detection_frame_count % FRAME_SKIP != 0:
-                    time.sleep(1/DETECTION_FPS)
-                    continue
-                
                 with frame_lock:
                     frame = current_frame.copy()
                 
@@ -152,7 +149,7 @@ def detection_thread():
                 with frame_lock:
                     detections = filtered_detections
                     
-            time.sleep(1/DETECTION_FPS)  # Reduced detection frequency
+            time.sleep(1/DETECTION_FPS)  # Detection frequency
         except Exception as e:
             print(f"Detection error: {e}")
             time.sleep(0.1)
@@ -169,6 +166,15 @@ def generate_frames():
     if picam2 is None:
         return
     
+    # Pre-allocate JPEG encoding parameters for speed - optimized for streaming
+    jpeg_params = [
+        cv2.IMWRITE_JPEG_QUALITY, 15,              # Even lower quality for speed
+        cv2.IMWRITE_JPEG_OPTIMIZE, 0,              # Disable optimization for speed
+        cv2.IMWRITE_JPEG_PROGRESSIVE, 0,           # Disable progressive for speed
+        cv2.IMWRITE_JPEG_CHROMA_QUALITY, 10,       # Lower chroma quality
+        cv2.IMWRITE_JPEG_LUMA_QUALITY, 15          # Lower luma quality
+    ]
+    
     while True:
         try:
             frame = picam2.capture_array()
@@ -180,39 +186,38 @@ def generate_frames():
                 fps_counter = 0
                 fps_start_time = time.time()
             
-            # Store frame for detection thread
+            # Store frame for detection thread (minimal copy)
             with frame_lock:
-                current_frame = frame.copy()
-                current_detections = detections.copy()
+                current_frame = frame
+                current_detections = detections.copy() if detections else []
             
-            # Draw detections on frame
-            display_frame = frame.copy()
-            for det in current_detections:
-                bbox = det['bbox']
-                class_name = det['class_name']
-                confidence = det['confidence']
-                
-                x1, y1, x2, y2 = bbox
-                
-                # Draw bounding box (green)
-                cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                
-                # Draw label
-                label = f"{class_name}: {confidence:.2f}"
-                cv2.putText(display_frame, label, (x1, y1-10), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            # Only draw overlays if we have detections to minimize processing
+            if current_detections:
+                display_frame = frame.copy()
+                for det in current_detections:
+                    bbox = det['bbox']
+                    class_name = det['class_name']
+                    confidence = det['confidence']
+                    
+                    x1, y1, x2, y2 = bbox
+                    
+                    # Draw bounding box (green)
+                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    
+                    # Draw label
+                    label = f"{class_name}: {confidence:.2f}"
+                    cv2.putText(display_frame, label, (x1, y1-10), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            else:
+                display_frame = frame
             
-            # Draw FPS overlay (top-left corner)
+            # Draw FPS overlay (minimal text)
             fps_text = f"FPS: {current_fps:.1f}"
             cv2.putText(display_frame, fps_text, (10, 30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             
-            # Encode frame as JPEG with optimized settings
-            ret, buffer = cv2.imencode('.jpg', display_frame, [
-                cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY,    # Lower quality for speed
-                cv2.IMWRITE_JPEG_OPTIMIZE, 1,              # Optimize for size
-                cv2.IMWRITE_JPEG_PROGRESSIVE, 0            # Disable progressive for speed
-            ])
+            # Ultra-fast JPEG encoding
+            ret, buffer = cv2.imencode('.jpg', display_frame, jpeg_params)
             if not ret:
                 continue
                 
@@ -222,7 +227,8 @@ def generate_frames():
                    
         except Exception as e:
             print(f"Error generating frame: {e}")
-            time.sleep(0.01)  # Shorter delay
+            # Immediate retry without delay for minimum latency
+            continue
 
 @app.route('/')
 def index():
@@ -234,7 +240,7 @@ def index():
             <h2>🏓 Sports Ball Detection</h2>
             <p>{hailo_status}</p>
             <p style="color:#888;">Only detecting: Sports Ball, Ball objects</p>
-            <img src="/video_feed" style="max-width:100%;height:auto;border:2px solid #333;">
+            <img src="/video_feed" style="max-width:100%;height:auto;border:2px solid #333; width:640px; height: 640px">
         </body>
     </html>
     '''
@@ -250,7 +256,7 @@ if __name__ == "__main__":
     print("🚀 Starting Optimized Sports Ball Detection")
     print("=" * 50)
     print(f"Camera: {CAMERA_WIDTH}x{CAMERA_HEIGHT} @ {CAMERA_FPS} FPS")
-    print(f"Detection: Every {FRAME_SKIP} frames @ {DETECTION_FPS} FPS")
+    print(f"Detection: Every frame @ {DETECTION_FPS} FPS")
     print(f"JPEG Quality: {JPEG_QUALITY}%")
     print("=" * 50)
     print("Access at: http://localhost:5000")

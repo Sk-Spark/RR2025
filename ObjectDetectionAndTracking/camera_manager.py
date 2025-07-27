@@ -62,22 +62,18 @@ class CameraManager:
             self.camera_type = None
     
     def _initialize_picamera2(self):
-        """Initialize Picamera2 if available"""
+        """Initialize Picamera2 with optimized settings"""
         try:
             from picamera2 import Picamera2
             picam2 = Picamera2()
             
             # Check if camera is available by attempting to configure it
             try:
-                # Configure camera with proper color formats
-                # Use BGR888 for main stream to avoid color conversion issues
-                # Use RGB888 for lores stream for processing compatibility
-                main = {'size': (config.CAMERA_RESOLUTION[0], config.CAMERA_RESOLUTION[1]), 'format': 'BGR888'}
-                lores = {'size': (320, 240), 'format': 'RGB888'}
-                controls = {'FrameRate': config.CAMERA_FRAMERATE}
-                
-                camera_config = picam2.create_preview_configuration(
-                    main, lores=lores, controls=controls
+                # Optimized camera configuration based on test_hailo_detection.py
+                # Use video configuration for better performance
+                camera_config = picam2.create_video_configuration(
+                    main={"size": config.CAMERA_RESOLUTION, "format": config.CAMERA_FORMAT},
+                    controls={"FrameRate": config.CAMERA_FRAMERATE}
                 )
                 picam2.configure(camera_config)
                 
@@ -89,7 +85,7 @@ class CameraManager:
                 
                 self.camera = picam2
                 self.camera_type = "picamera2"
-                logger.info(f"Picamera2 initialized successfully with resolution {config.CAMERA_RESOLUTION} @ {config.CAMERA_FRAMERATE}fps")
+                logger.info(f"Picamera2 optimized: {config.CAMERA_RESOLUTION} {config.CAMERA_FORMAT} @ {config.CAMERA_FRAMERATE}fps")
                 
             except Exception as config_error:
                 logger.error(f"Failed to configure camera: {config_error}")
@@ -136,7 +132,7 @@ class CameraManager:
         Capture a single frame from camera
         
         Returns:
-            Captured frame as numpy array, or None if failed
+            Captured frame as numpy array in BGR format, or None if failed
         """
         if self.camera is None:
             # Generate a test frame for simulation mode
@@ -149,12 +145,16 @@ class CameraManager:
             
         try:
             if self.camera_type == "picamera2":
-                # picamera2 method - main stream is already in BGR888 format
+                # picamera2 method with RGB888 format (needs conversion)
                 frame = self.camera.capture_array()
-                # No color conversion needed since we configured main stream as BGR888
+                
+                # Convert RGB to BGR for OpenCV compatibility
+                # if len(frame.shape) == 3 and frame.shape[2] == 3:
+                #     frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                
                 return frame
             else:
-                # OpenCV method
+                # OpenCV method (already BGR)
                 ret, frame = self.camera.read()
                 return frame if ret else None
                 
@@ -273,7 +273,7 @@ class CameraManager:
     
     def get_frame_for_streaming(self) -> Optional[bytes]:
         """
-        Get frame encoded as JPEG for streaming
+        Get frame encoded as JPEG for streaming with optimized quality
         
         Returns:
             JPEG encoded frame as bytes, or None if no frame available
@@ -283,9 +283,10 @@ class CameraManager:
             # Draw UI elements
             frame = self.draw_ui_elements(frame)
             
-            # Encode as JPEG
+            # Use optimized JPEG quality for better performance
+            jpeg_quality = getattr(config, 'JPEG_QUALITY', 40)
             _, buffer = cv2.imencode('.jpg', frame, 
-                                   [cv2.IMWRITE_JPEG_QUALITY, config.STREAM_QUALITY])
+                                   [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality])
             return buffer.tobytes()
         return None
     

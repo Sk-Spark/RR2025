@@ -40,10 +40,21 @@ def video_feed():
 
 
 def generate_frames():
-    """Generate video frames for streaming"""
+    """Generate video frames for streaming with optimized performance"""
+    frame_skip_counter = 0
+    stream_frame_skip = getattr(config, 'STREAM_FRAME_SKIP', 2)  # Skip frames for streaming
+    
     while True:
         try:
             if tracker and tracker.camera_manager:
+                # Apply frame skipping for web streaming to improve performance
+                frame_skip_counter += 1
+                if frame_skip_counter < stream_frame_skip:
+                    time.sleep(0.02)  # Short sleep between skipped frames
+                    continue
+                    
+                frame_skip_counter = 0
+                
                 # Get frame with overlays
                 frame_bytes = tracker.camera_manager.get_frame_for_streaming()
                 
@@ -52,7 +63,7 @@ def generate_frames():
                            b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
                 else:
                     # Send a placeholder frame if no camera data
-                    time.sleep(0.1)
+                    time.sleep(0.05)
             else:
                 time.sleep(0.1)
                 

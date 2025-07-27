@@ -110,6 +110,7 @@ class HailoBallDetector(BallDetector):
             ]
             
             if ball_detections:
+                # logger.info(f"Ball detections: {ball_detections}")
                 # Use the detection with highest confidence
                 best_detection = max(ball_detections, key=lambda x: x['confidence'])
                 bbox = best_detection['bbox']
@@ -122,10 +123,10 @@ class HailoBallDetector(BallDetector):
                 
                 # Check size limits
                 if config.BALL_MIN_RADIUS <= radius <= config.BALL_MAX_RADIUS:
+                    logger.debug(f"Ball detected: center=({center_x}, {center_y}), radius={radius}, confidence={best_detection['confidence']:.2f}")
                     detection = (center_x, center_y, radius)
                     self.last_detection = detection
                     self.detection_count += 1
-                    logger.debug(f"Ball detected: center=({center_x}, {center_y}), radius={radius}, confidence={best_detection['confidence']:.2f}")
                     return detection
                 else:
                     logger.debug(f"Ball detected but size out of range: radius={radius}")

@@ -146,7 +146,7 @@ class HailoObjectDetector:
     def detect(self, frame):
         """Run inference on a frame"""
         if self.hailo is None:
-            logger.error("Hailo model not initialized")
+            print("ERROR: Hailo model not initialized")
             return []
             
         try:
@@ -157,7 +157,6 @@ class HailoObjectDetector:
             if (orig_h, orig_w) != (self.model_h, self.model_w):
                 import cv2
                 resized_frame = cv2.resize(frame, (self.model_w, self.model_h))
-                logger.debug(f"Resized frame from {orig_w}x{orig_h} to {self.model_w}x{self.model_h}")
             else:
                 resized_frame = frame
             

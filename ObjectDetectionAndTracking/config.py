@@ -1,10 +1,17 @@
 # Configuration file for Ping Pong Ball Tracking System
 # Edit these values to customize the system behavior
 
-# Camera configuration
-CAMERA_RESOLUTION = (1280, 1280)  # High resolution for better detection
+# Camera configuration - High resolution for better quality
+CAMERA_RESOLUTION = (640, 640)  # Full resolution for better quality
 CAMERA_FRAMERATE = 30
+CAMERA_FORMAT = "RGB888"  # Explicit format specification
 CAMERA_ROTATION = 0  # Rotation in degrees (0, 90, 180, 270)
+
+# Performance optimization settings
+DETECTION_FPS = 15          # Higher detection frequency for responsiveness
+FRAME_SKIP = 1              # Process every frame for minimum latency
+JPEG_QUALITY = 25           # JPEG quality for web streaming (lower = faster)
+USE_FRAME_SKIPPING = False  # Disable frame skipping for maximum responsiveness
 
 # Ball detection settings - Hailo NPU only
 BALL_MIN_RADIUS = 10  # Minimum ball radius in pixels
@@ -24,8 +31,8 @@ HAILO_BALL_CLASS_NAME = "sports ball"  # COCO class name for sports ball
 # Servo control settings
 PCA9685_ADDRESS = 0x40  # I2C address of PCA9685
 PCA9685_FREQUENCY = 50  # PWM frequency in Hz
-PAN_SERVO_CHANNEL = 0   # PCA9685 channel for pan servo
-TILT_SERVO_CHANNEL = 1  # PCA9685 channel for tilt servo
+PAN_SERVO_CHANNEL = 2  # PCA9685 channel for pan servo
+TILT_SERVO_CHANNEL = 3  # PCA9685 channel for tilt servo
 
 # Servo angle limits
 PAN_MIN_ANGLE = 0      # Minimum pan angle

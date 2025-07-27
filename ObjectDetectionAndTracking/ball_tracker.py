@@ -46,7 +46,11 @@ class BallTracker:
         self.processing_times = []
         self.max_processing_times = 100
         
-        logger.info("Ball tracker initialized")
+        # Frame skipping optimization
+        self.frame_skip_counter = 0
+        self.frame_skip_interval = getattr(config, 'FRAME_SKIP', 1) if getattr(config, 'USE_FRAME_SKIPPING', False) else 1
+        
+        logger.info(f"Ball tracker initialized with frame skip interval: {self.frame_skip_interval} (skipping {'enabled' if config.USE_FRAME_SKIPPING else 'disabled'})")
     
     def start_tracking(self):
         """Start the ball tracking system"""
@@ -92,7 +96,7 @@ class BallTracker:
                 logger.error(f"Error stopping tracking: {e}")
     
     def _tracking_loop(self):
-        """Main tracking loop"""
+        """Main tracking loop with configurable frame skipping optimization"""
         logger.info("Tracking loop started")
         
         while not self.stop_tracking and self.tracking_active:
@@ -105,8 +109,24 @@ class BallTracker:
                     time.sleep(0.01)
                     continue
                 
-                # Detect ball
-                detection = self.ball_detector.detect(frame)
+                # Apply frame skipping for detection (if enabled)
+                detection = None
+                should_detect = True
+                
+                if config.USE_FRAME_SKIPPING and self.frame_skip_interval > 1:
+                    self.frame_skip_counter += 1
+                    if self.frame_skip_counter >= self.frame_skip_interval:
+                        # Reset counter and run detection
+                        self.frame_skip_counter = 0
+                        should_detect = True
+                    else:
+                        should_detect = False
+                        # Use last detection for tracking continuity
+                        if hasattr(self.ball_detector, 'last_detection') and self.ball_detector.last_detection:
+                            detection = self.ball_detector.last_detection
+                
+                if should_detect:
+                    detection = self.ball_detector.detect(frame)
                 
                 if detection:
                     self._process_detection(detection, frame.shape)
@@ -117,7 +137,7 @@ class BallTracker:
                 processing_time = time.time() - start_time
                 self._update_performance_metrics(processing_time)
                 
-                # Control loop timing
+                # Control loop timing - optimized for higher FPS
                 self._control_loop_timing(start_time)
                 
             except Exception as e:
@@ -155,10 +175,15 @@ class BallTracker:
         # Apply detection filtering/smoothing if needed
         filtered_position = self._filter_detection((x, y))
         
-        # Update servo target position
-        self.servo_controller.update_target_position(
-            filtered_position, 
-            (frame_width, frame_height)
+        # Log the ball detection and tracking command
+        logger.info(f"🏓 BALL DETECTED: Position=({x},{y}) Radius={radius}px Frame=({frame_width}x{frame_height})")
+        
+        # Update servo target position using the correct method name
+        self.servo_controller.track_target(
+            filtered_position[0], 
+            filtered_position[1],
+            frame_width, 
+            frame_height
         )
         
         logger.debug(f"Ball detected at ({x}, {y}) radius={radius}")
@@ -197,8 +222,10 @@ class BallTracker:
             self.processing_times.pop(0)
     
     def _control_loop_timing(self, start_time: float):
-        """Control loop timing to maintain consistent rate"""
-        target_loop_time = 1.0 / 30.0  # 30 Hz target
+        """Control loop timing to maintain consistent rate - optimized for performance"""
+        # Use optimized detection FPS from config
+        target_fps = getattr(config, 'DETECTION_FPS', 15)
+        target_loop_time = 1.0 / target_fps
         elapsed = time.time() - start_time
         
         if elapsed < target_loop_time:

@@ -67,7 +67,7 @@ def initialize_system():
         logger.info("Initializing camera...")
         camera_manager = CameraManager()
         
-        # Initialize servo controller
+        # Initialize servo controller with real hardware
         logger.info("Initializing servo controller...")
         servo_controller = BallTrackingServoController()
         
@@ -187,6 +187,11 @@ def main():
         # Start system
         if not args.no_web:
             start_system()
+            # Auto-start tracking in web mode too
+            logger.info("Auto-starting ball tracking...")
+            if ball_tracker:
+                ball_tracker.start_tracking()
+                logger.info("🎯 Ball tracking system AUTO-STARTED!")
         else:
             logger.info("Running in no-web mode")
             # Start tracking immediately in no-web mode

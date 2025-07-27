@@ -11,86 +11,84 @@ import config
 
 logger = logging.getLogger(__name__)
 
-# Hardware dependencies - handle gracefully if not available
-try:
-    import board
-    import busio
-    from adafruit_pca9685 import PCA9685
-    HARDWARE_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"Hardware modules not available: {e}")
-    HARDWARE_AVAILABLE = False
+# Hardware dependencies - required for real hardware
+import board
+import busio
+from adafruit_pca9685 import PCA9685
 
 
 class PCA9685Controller:
-    """Simple PCA9685 controller using direct I2C without gpiozero"""
+    """Real PCA9685 controller implementation based on Motors_Servo_POC"""
     
     def __init__(self, i2c_address=0x40, frequency=50):
         """
-        Initialize PCA9685 controller
+        Initialize PCA9685 controller with real hardware
         
         Args:
             i2c_address (int): I2C address of PCA9685 (default: 0x40)
             frequency (int): PWM frequency in Hz (default: 50Hz for servos)
         """
-        if not HARDWARE_AVAILABLE:
-            logger.warning("PCA9685 hardware not available, using mock controller")
-            self.mock_mode = True
-            return
+        logger.info(f"Initializing PCA9685 at I2C address {hex(i2c_address)}...")
         
-        try:
-            logger.info(f"Initializing PCA9685 at I2C address {hex(i2c_address)}...")
-            
-            # Initialize I2C bus directly
-            self.i2c = busio.I2C(board.SCL, board.SDA)
-            
-            # Initialize PCA9685
-            self.pca = PCA9685(self.i2c, address=i2c_address)
-            self.pca.frequency = frequency
-            
-            self.mock_mode = False
-            logger.info(f"PCA9685 initialized successfully at {frequency}Hz")
-            
-        except Exception as e:
-            logger.error(f"Error initializing PCA9685: {e}")
-            self.mock_mode = True
+        # Initialize I2C bus
+        self.i2c = busio.I2C(board.SCL, board.SDA)
+        
+        # Initialize PCA9685
+        self.pca = PCA9685(self.i2c, address=i2c_address)
+        self.pca.frequency = frequency
+        
+        # Servo configuration for SG90 servos (same as Motors_Servo_POC)
+        self.servo_min_pulse = 500   # Minimum pulse width in microseconds
+        self.servo_max_pulse = 2500  # Maximum pulse width in microseconds
+        self.servo_min_angle = 0     # Minimum angle in degrees
+        self.servo_max_angle = 180   # Maximum angle in degrees
+        
+        # Store current positions
+        self.current_positions = {}
+        
+        logger.info(f"PCA9685 Controller initialized successfully")
+    
+    def angle_to_pulse_width(self, angle):
+        """Convert angle to pulse width in microseconds"""
+        angle = max(self.servo_min_angle, min(self.servo_max_angle, angle))
+        pulse_width = self.servo_min_pulse + (angle / self.servo_max_angle) * (self.servo_max_pulse - self.servo_min_pulse)
+        return int(pulse_width)
+    
+    def pulse_width_to_duty_cycle(self, pulse_width_us):
+        """Convert pulse width in microseconds to duty cycle value"""
+        period_us = 1_000_000 / self.pca.frequency  # Period in microseconds
+        duty_cycle = int((pulse_width_us / period_us) * 65535)
+        return duty_cycle
     
     def set_pwm(self, channel, duty_cycle):
-        """
-        Set PWM duty cycle for a channel
-        
-        Args:
-            channel (int): PWM channel (0-15)
-            duty_cycle (int): Duty cycle (0-65535)
-        """
-        if self.mock_mode:
-            logger.debug(f"Mock PCA9685: Channel {channel} = {duty_cycle}")
-            return
-            
-        try:
+        """Set PWM duty cycle for a channel"""
+        if duty_cycle == 0:
+            self.pca.channels[channel].duty_cycle = 0
+        else:
             self.pca.channels[channel].duty_cycle = duty_cycle
-        except Exception as e:
-            logger.error(f"Error setting PWM on channel {channel}: {e}")
-            raise
     
     def get_pwm(self, channel):
-        """
-        Get PWM duty cycle for a channel
+        """Get current PWM duty cycle for a channel"""
+        return self.pca.channels[channel].duty_cycle
+    
+    def set_servo_angle(self, channel, angle):
+        """Set servo to specific angle"""
+        # Constrain angle
+        angle = max(self.servo_min_angle, min(self.servo_max_angle, angle))
         
-        Args:
-            channel (int): PWM channel (0-15)
-            
-        Returns:
-            int: Current duty cycle (0-65535)
-        """
-        if self.mock_mode:
-            return 32768  # Mock value (50% duty cycle)
-            
-        try:
-            return self.pca.channels[channel].duty_cycle
-        except Exception as e:
-            logger.error(f"Error getting PWM on channel {channel}: {e}")
-            return 0
+        # Convert angle to pulse width and duty cycle
+        pulse_width = self.angle_to_pulse_width(angle)
+        duty_cycle = self.pulse_width_to_duty_cycle(pulse_width)
+        
+        # Set PWM
+        self.set_pwm(channel, duty_cycle)
+        
+        # Update position tracking
+        self.current_positions[channel] = angle
+        
+        logger.debug(f"Servo channel {channel} set to {angle}° (pulse {pulse_width}μs)")
+        
+        return angle
 
 
 class BallTrackingServoController:
@@ -100,24 +98,19 @@ class BallTrackingServoController:
     """
     
     def __init__(self):
-        """Initialize servo controller"""
-        # Initialize PCA9685 controller
+        """Initialize servo controller with real PCA9685 hardware only"""
+        # Initialize PCA9685 controller with real hardware
         self.pca = PCA9685Controller(
             i2c_address=config.PCA9685_ADDRESS, 
             frequency=config.PCA9685_FREQUENCY
         )
+        logger.info("Servo controller initialized with PCA9685 hardware")
         
         # Servo configuration
         self.servos = {
             "pan": config.PAN_SERVO_CHANNEL,
             "tilt": config.TILT_SERVO_CHANNEL,
         }
-        
-        # SG90 servo specifications (from Motors_Servo_POC)
-        self.servo_min_pulse = 500   # Minimum pulse width in microseconds
-        self.servo_max_pulse = 2500  # Maximum pulse width in microseconds
-        self.servo_min_angle = 0     # Minimum angle in degrees
-        self.servo_max_angle = 180   # Maximum angle in degrees
         
         # Current positions
         self.current_positions = {
@@ -128,6 +121,12 @@ class BallTrackingServoController:
         # Movement constraints
         self.pan_limits = (config.PAN_MIN_ANGLE, config.PAN_MAX_ANGLE)
         self.tilt_limits = (config.TILT_MIN_ANGLE, config.TILT_MAX_ANGLE)
+        
+        # Servo specifications for angle calculations
+        self.servo_min_angle = 0
+        self.servo_max_angle = 180
+        self.servo_min_pulse = 500
+        self.servo_max_pulse = 2500
         
         # Initialize servos to center position
         self.center_servos()
@@ -185,18 +184,13 @@ class BallTrackingServoController:
         elif servo_name == "tilt":
             angle = max(self.tilt_limits[0], min(self.tilt_limits[1], angle))
         
-        # Convert angle to pulse width and then to duty cycle
-        pulse_width = self.angle_to_pulse_width(angle)
-        duty_cycle = self.pulse_width_to_duty_cycle(pulse_width)
-        
-        # Set PWM
-        channel = self.servos[servo_name]
-        self.pca.set_pwm(channel, duty_cycle)
-        
         # Store current position
         self.current_positions[servo_name] = angle
         
-        logger.debug(f"Servo {servo_name}: Angle={angle}°, Pulse={pulse_width}μs, Duty={duty_cycle}")
+        # Use the PCA9685Controller's set_servo_angle method
+        channel = self.servos[servo_name]
+        self.pca.set_servo_angle(channel, angle)
+        logger.debug(f"Servo {servo_name} set to {angle}° on channel {channel}")
     
     def smooth_move_servo(self, servo_name, target_angle, duration=1.0, easing="ease_in_out"):
         """
@@ -346,7 +340,7 @@ class BallTrackingServoController:
             "current_tilt": self.current_positions["tilt"],
             "pan_limits": self.pan_limits,
             "tilt_limits": self.tilt_limits,
-            "mock_mode": self.pca.mock_mode if hasattr(self.pca, 'mock_mode') else False
+            "hardware_available": True
         }
     
     def stop_tracking_mode(self):
@@ -372,17 +366,27 @@ class BallTrackingServoController:
         error_x = target_x - center_x
         error_y = target_y - center_y
         
+        # Check if target is within deadzone
+        if abs(error_x) <= config.TRACKING_DEADZONE and abs(error_y) <= config.TRACKING_DEADZONE:
+            logger.debug(f"Target in deadzone - no servo movement needed")
+            return
+        
         # Convert pixel errors to servo adjustments
-        pan_adjustment = (error_x / center_x) * config.PAN_SENSITIVITY
+        # Invert pan direction: if ball is right of center (positive error_x), 
+        # camera should pan left (negative adjustment) to center the ball
+        pan_adjustment = -(error_x / center_x) * config.PAN_SENSITIVITY
         tilt_adjustment = (error_y / center_y) * config.TILT_SENSITIVITY
         
         # Calculate new positions
         new_pan = self.current_positions["pan"] + pan_adjustment
-        new_tilt = self.current_positions["tilt"] - tilt_adjustment  # Invert for natural movement
+        new_tilt = self.current_positions["tilt"] + tilt_adjustment  
         
         # Apply limits
         new_pan = max(self.pan_limits[0], min(self.pan_limits[1], new_pan))
         new_tilt = max(self.tilt_limits[0], min(self.tilt_limits[1], new_tilt))
+        
+        # Log the tracking movement
+        logger.info(f"🎯 SERVO TRACKING: Target=({target_x:.0f},{target_y:.0f}) Error=({error_x:.1f},{error_y:.1f}) Pan: {self.current_positions['pan']:.1f}°→{new_pan:.1f}° Tilt: {self.current_positions['tilt']:.1f}°→{new_tilt:.1f}°")
         
         # Use smooth movement for more natural tracking
         if hasattr(config, 'TRACKING_SMOOTH_TIME'):
@@ -390,16 +394,17 @@ class BallTrackingServoController:
         else:
             self.set_pan_tilt(new_pan, new_tilt)
         
-        logger.debug(f"Tracking: error=({error_x:.1f},{error_y:.1f}), new_pos=({new_pan:.1f},{new_tilt:.1f})")
+        logger.info(f"✅ SERVO MOVED: Pan={self.current_positions['pan']:.1f}° Tilt={self.current_positions['tilt']:.1f}°")
     
     def get_status(self):
         """Get servo controller status"""
         return {
-            'pan_angle': self.current_positions["pan"],
-            'tilt_angle': self.current_positions["tilt"],
+            'current_pan': self.current_positions["pan"],
+            'current_tilt': self.current_positions["tilt"],
             'pan_limits': self.pan_limits,
             'tilt_limits': self.tilt_limits,
-            'mock_mode': self.pca.mock_mode if hasattr(self.pca, 'mock_mode') else False
+            'tracking_active': True,  # Always active when system is running
+            'hardware_available': True
         }
     
     def stop_tracking_mode(self):

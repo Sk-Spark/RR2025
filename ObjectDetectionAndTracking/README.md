@@ -1,165 +1,300 @@
 # Ping Pong Ball Tracking System
 
-A real-time ping pong ball tracking system for Raspberry Pi 5 with RPi AI Hat, featuring servo-controlled pan-tilt camera movement and web-based monitoring interface.
+A real-time ping pong ball tracking system for Raspberry Pi 5 with Hailo NPU acceleration, featuring servo-controlled pan-tilt camera movement and web-based monitoring interface.
 
 ## Features
 
-- **Dual Detection Methods**: 
-  - Hailo NPU-accelerated object detection (primary)
-  - Color-based HSV filtering (fallback)
-- **Real-time Servo Control**: SG90 servos for pan-tilt camera movement
-- **Web Interface**: Live video streaming with control panel
-- **Modular Design**: Clean separation of components
+- **Hailo NPU-Accelerated Detection**: Real-time sports ball detection using AI acceleration
+- **Real-time Servo Control**: SG90 servos for smooth pan-tilt camera movement  
+- **Web Interface**: Live video streaming with detection visualization
+- **Modular Design**: Clean separation of components for easy maintenance
 - **Performance Optimized**: Designed for real-time operation on RPi 5
-- **Configurable**: Extensive configuration options
+- **Configurable**: Extensive configuration options for different scenarios
 
 ## Hardware Requirements
 
 ### Essential Components
-- Raspberry Pi 5
-- RPi AI Hat (for Hailo NPU acceleration)
-- Raspberry Pi Camera Module (CSI interface)
-- 2x SG90 Servo Motors
-- PCA9685 16-Channel PWM Driver
-- Pan-tilt bracket for camera mounting
+- **Raspberry Pi 5** (4GB+ recommended)
+- **Raspberry Pi Camera Module** (v2/v3 or HQ Camera)
+- **2x SG90 Servo Motors** (micro servos)
+- **PCA9685 16-Channel PWM Driver** (I2C)
+- **Pan-tilt bracket** for camera mounting
+- **Jumper wires** for connections
+- **Power supply** (5V 3A for Pi + servos)
 
-### Connections
+### Optional Components
+- **Hailo AI Hat** (for NPU acceleration - enables AI detection)
+- **Breadboard** for prototyping connections
+
+### Hardware Connections
 ```
 PCA9685 → Raspberry Pi 5:
 - VCC → 5V (Pin 2 or 4)
-- GND → GND (Pin 6)
+- GND → GND (Pin 6, 9, 14, 20, 25, 30, 34, 39)
 - SDA → GPIO 2 (Pin 3)
 - SCL → GPIO 3 (Pin 5)
 
 Servos → PCA9685:
-- Pan Servo → Channel 0
-- Tilt Servo → Channel 1
+- Pan Servo → Channel 2 (config: PAN_SERVO_CHANNEL = 2)
+- Tilt Servo → Channel 3 (config: TILT_SERVO_CHANNEL = 3)
 
-Camera → CSI connector
+Camera → Raspberry Pi CSI connector
 ```
 
-## Software Architecture
+## Project Structure
 
 ```
-main.py
-├── config.py                 # Configuration settings
-├── camera_manager.py         # Camera operations and streaming
-├── ball_detector.py          # Ball detection algorithms
-├── servo_controller.py       # Servo control and tracking
-├── ball_tracker.py          # Main tracking coordination
-├── web_interface.py         # Flask web server
-└── templates/
-    └── index.html           # Web interface
+RR2025/ObjectDetectionAndTracking/
+├── main.py                    # Main application entry point
+├── config.py                  # System configuration settings
+├── 
+├── # Core Components
+├── camera_manager.py          # Camera operations and frame management
+├── hailo_detector.py          # Hailo NPU-based ball detection
+├── servo_controller.py        # PCA9685 servo control and tracking
+├── ball_tracker.py           # Main tracking coordination logic
+├── web_interface.py          # Flask web server and API
+├── system_status.py          # System monitoring and status
+├── 
+├── # Test Scripts
+├── test_hailo_detection.py   # Standalone Hailo detection test
+├── test_camera_colors.py    # Camera and color detection test
+├── test_servo_movement.py   # Servo movement and calibration test
+├── 
+├── # Configuration & Setup
+├── requirements.txt          # Python dependencies
+├── setup.sh                 # System setup script
+├── 
+├── # Resources
+├── resources/
+│   └── models/
+│       └── hailo8/
+│           ├── yolov8m.hef   # YOLOv8 medium model
+│           ├── yolov6n.hef   # YOLOv6 nano model  
+│           └── yolov5m_seg.hef # YOLOv5 segmentation model
+├── coco.txt                 # COCO class labels
+├── 
+├── # Web Interface
+├── templates/
+│   └── index.html           # Web interface template
+├── 
+├── # Logs and Runtime
+├── ball_tracking.log        # Application logs
+├── hailort.log             # Hailo runtime logs
+└── __pycache__/            # Python cache files
 ```
 
-## Installation
+## Software Installation
 
-### 1. Quick Setup
-```bash
-cd /home/spark/RR2025/ObjectDetection&Tracking
-./setup.sh
-```
+### Prerequisites
 
-### 2. Manual Installation
+1. **Raspberry Pi OS Setup**
+   ```bash
+   # Update system packages
+   sudo apt update && sudo apt upgrade -y
+   
+   # Enable I2C for PCA9685
+   sudo raspi-config
+   # Navigate to: Interface Options → I2C → Enable
+   
+   # Enable camera
+   sudo raspi-config
+   # Navigate to: Interface Options → Camera → Enable
+   
+   # Reboot after changes
+   sudo reboot
+   ```
 
-#### System Dependencies
-```bash
-sudo apt-get update
-sudo apt-get install -y python3-dev python3-pip libopencv-dev python3-opencv i2c-tools python3-smbus
-```
+2. **Install System Dependencies**
+   ```bash
+   # Essential system packages
+   sudo apt install -y \
+       python3-dev \
+       python3-pip \
+       python3-picamera2 \
+       python3-opencv \
+       python3-numpy \
+       python3-flask \
+       python3-simplejpeg \
+       i2c-tools \
+       git
+   
+   # Verify I2C is working
+   sudo i2cdetect -y 1
+   # Should show your PCA9685 at address 0x40
+   ```
 
-#### Python Environment
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
+3. **Install Python Libraries (System Packages)**
+   
+   **Important**: Use system packages to avoid numpy version conflicts:
+   ```bash
+   # Use system packages for core dependencies
+   pip3 install --break-system-packages \
+       adafruit-circuitpython-pca9685 \
+       adafruit-circuitpython-motor \
+       adafruit-circuitpython-servokit
+   
+   # Additional required packages
+   pip3 install --break-system-packages \
+       board \
+       busio
+   ```
 
-#### Enable I2C
-```bash
-sudo raspi-config nonint do_i2c 0
-```
+### Hailo NPU Setup (Optional but Recommended)
 
-## Configuration
+1. **Install Hailo Runtime**
+   ```bash
+   # Download and install HailoRT
+   wget https://hailo.ai/downloads/hailort/[version]/hailort-[version]-linux.deb
+   sudo dpkg -i hailort-[version]-linux.deb
+   
+   # Install Python bindings
+   pip3 install --break-system-packages hailort
+   ```
 
-Edit `config.py` to customize system behavior:
+2. **Download AI Models**
+   ```bash
+   # Create models directory
+   mkdir -p resources/models/hailo8/
+   
+   # Download YOLOv8 medium model (recommended)
+   wget -O resources/models/hailo8/yolov8m.hef \
+       https://hailo-model-zoo.s3.amazonaws.com/[model-url]
+   ```
 
-### Camera Settings
+### Project Installation
+
+1. **Clone Repository**
+   ```bash
+   cd ~/RR2025
+   git clone [repository-url] ObjectDetectionAndTracking
+   cd ObjectDetectionAndTracking
+   ```
+
+2. **Install Project Dependencies**
+   ```bash
+   # Install from requirements.txt using system packages
+   pip3 install --break-system-packages -r requirements.txt
+   ```
+
+3. **Run Setup Script**
+   ```bash
+   chmod +x setup.sh
+   ./setup.sh
+   ```
+
+## System Configuration
+
+The system uses `config.py` for all configuration parameters:
+
 ```python
-CAMERA_RESOLUTION = (1280, 720)  # Resolution for tracking
-CAMERA_FRAMERATE = 30            # FPS
+# Key Configuration Parameters
+CAMERA_WIDTH = 1640          # Camera resolution width
+CAMERA_HEIGHT = 1232         # Camera resolution height
+CAMERA_FPS = 30             # Frames per second
+
+# Servo Configuration
+PAN_SERVO_CHANNEL = 2       # PCA9685 channel for pan servo
+TILT_SERVO_CHANNEL = 3      # PCA9685 channel for tilt servo
+PAN_MIN = 20                # Minimum pan angle
+PAN_MAX = 160              # Maximum pan angle
+TILT_MIN = 30              # Minimum tilt angle  
+TILT_MAX = 150             # Maximum tilt angle
+
+# Detection Parameters
+MIN_BALL_AREA = 500        # Minimum area for ball detection
+CONFIDENCE_THRESHOLD = 0.5  # AI detection confidence threshold
+TRACKING_SENSITIVITY = 0.8  # Servo tracking sensitivity
+
+# HSV Color Range (fallback detection)
+BALL_COLOR_LOWER = (15, 100, 100)  # Lower HSV bound
+BALL_COLOR_UPPER = (35, 255, 255)  # Upper HSV bound
 ```
 
-### Ball Detection
-```python
-# Color-based detection (HSV values for orange ball)
-BALL_COLOR_HSV_LOWER = (10, 100, 100)
-BALL_COLOR_HSV_UPPER = (20, 255, 255)
+## Required Python Libraries
 
-# Hailo NPU detection
-USE_HAILO_DETECTION = True
-HAILO_CONFIDENCE_THRESHOLD = 0.5
-```
+### System Packages (Pre-installed)
+- `python3-picamera2` - Camera interface
+- `python3-opencv` - Computer vision (cv2)
+- `python3-numpy` - Numerical computing 
+- `python3-flask` - Web framework
+- `python3-simplejpeg` - JPEG encoding
 
-### Servo Control
-```python
-PAN_SERVO_CHANNEL = 0    # PCA9685 channel for pan
-TILT_SERVO_CHANNEL = 1   # PCA9685 channel for tilt
-
-# Control parameters
-TRACKING_DEADZONE = 50   # Pixels from center to ignore
-PAN_GAIN = 0.1          # Proportional gain for pan
-TILT_GAIN = 0.1         # Proportional gain for tilt
-MAX_SERVO_STEP = 5      # Maximum movement per frame (degrees)
-```
+### Additional Libraries (pip install)
+- `adafruit-circuitpython-pca9685` - PCA9685 PWM driver
+- `adafruit-circuitpython-motor` - Motor control
+- `adafruit-circuitpython-servokit` - Servo control utilities
+- `board` - Hardware pin definitions
+- `busio` - I2C/SPI communication
+- `hailort` - Hailo NPU runtime (optional)
 
 ## Usage
 
-### Start the System
+### Quick Start
 ```bash
-cd /home/spark/RR2025/ObjectDetection&Tracking
-./start_tracking.sh
+# Navigate to project directory
+cd ~/RR2025/ObjectDetectionAndTracking
+
+# Run the ball tracking test
+python3 test_hailo_detection.py
+
+# Access the web interface
+# Open browser to: http://localhost:5000
+# or: http://[raspberry-pi-ip]:5000
 ```
 
-### Web Interface
-Open a browser and navigate to:
-```
-http://localhost:5000
-# or
-http://[raspberry-pi-ip]:5000
+### Test Scripts
+
+1. **Ball Detection Test**
+   ```bash
+   # Test Hailo NPU detection with web streaming
+   python3 test_hailo_detection.py
+   ```
+
+2. **Camera and Color Detection Test**
+   ```bash
+   # Test camera and HSV color detection
+   python3 test_camera_colors.py
+   ```
+
+3. **Servo Movement Test**
+   ```bash
+   # Test servo movement and calibration
+   python3 test_servo_movement.py
+   ```
+
+### Main Application
+```bash
+# Start the full tracking system
+python3 main.py
 ```
 
 ### Web Interface Features
 - **Live Video Stream**: Real-time camera feed with detection overlays
-- **Control Buttons**: Start/stop tracking, center camera
-- **System Status**: FPS, detection count, servo positions
-- **Configuration**: Adjust tracking parameters in real-time
-
-### Command Line Options
-```bash
-# Run without web interface (tracking only)
-python3 main.py --no-web
-
-# Set log level
-python3 main.py --log-level DEBUG
-
-# Show help
-python3 main.py --help
-```
+- **Detection Visualization**: Bounding boxes around detected balls
+- **System Status**: FPS counter, detection confidence, servo positions
+- **Real-time Control**: Camera positioning and tracking controls
 
 ## System Operation
 
 ### Detection Process
-1. **Primary**: Hailo NPU detects "sports ball" class objects
-2. **Fallback**: Color-based detection using HSV filtering
-3. **Filtering**: Moving average smoothing reduces noise
+1. **Primary Detection**: Hailo NPU detects "sports ball" class objects using YOLOv8
+2. **Fallback Detection**: HSV color-based detection for orange ping pong balls
+3. **Confidence Filtering**: Only detections above threshold are processed
+4. **Area Filtering**: Minimum area requirement eliminates noise
 
 ### Tracking Algorithm
-1. Calculate ball position relative to frame center
-2. Apply deadzone to prevent jitter
-3. Calculate proportional servo adjustments
-4. Apply smoothing and step limiting
-5. Update servo positions
+1. **Position Calculation**: Determine ball center relative to frame center
+2. **Deadzone Application**: Ignore small movements to prevent jitter
+3. **Proportional Control**: Calculate servo adjustments based on position error
+4. **Movement Limiting**: Apply maximum step size to ensure smooth movement
+5. **Servo Update**: Send PWM signals to pan/tilt servos via PCA9685
+
+### Key Features
+- **Real-time Performance**: 30 FPS processing with minimal latency
+- **Smooth Tracking**: Proportional control with deadzone prevents oscillation
+- **Robust Detection**: Dual detection methods ensure reliability
+- **Web Monitoring**: Live video stream with overlaid detection data
 
 ### Performance Monitoring
 - Frame rate monitoring
@@ -183,86 +318,203 @@ libcamera-jpeg -o test.jpg
 # Check I2C devices
 sudo i2cdetect -y 1
 
-# Should show PCA9685 at address 0x40
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### Camera Not Detected
+```bash
+# Check camera connection
+libcamera-hello --list-cameras
+
+# If no cameras detected:
+sudo raspi-config
+# Interface Options → Camera → Enable
+sudo reboot
 ```
 
-### Servo Issues
-- Verify PCA9685 connections
-- Check servo power supply (5V, adequate current)
-- Test individual servo movement
+#### I2C Communication Errors
+```bash
+# Check I2C is enabled
+sudo raspi-config
+# Interface Options → I2C → Enable
 
-### Hailo Issues
-- Ensure RPi AI Hat is properly connected
-- Check Hailo installation in HailoNPU_POC directory
-- Fallback to color detection if Hailo unavailable
+# Scan for I2C devices
+sudo i2cdetect -y 1
+# Should show PCA9685 at address 0x40
 
-### Performance Issues
-- Lower camera resolution if needed
-- Adjust tracking parameters
-- Check CPU usage and temperature
+# If no devices found:
+# - Check wiring connections
+# - Verify 5V power to PCA9685
+# - Check SDA/SCL connections
+```
+
+#### Dependency Conflicts
+```bash
+# Remove conflicting packages
+pip3 uninstall numpy opencv-python
+
+# Use system packages only
+sudo apt install python3-numpy python3-opencv
+```
+
+#### Servo Movement Issues
+- **Check PCA9685 connections**: Verify VCC (5V), GND, SDA (GPIO 2), SCL (GPIO 3)
+- **Power supply**: Ensure adequate 5V current for servos (minimum 2A)
+- **Servo channels**: Verify pan servo on channel 2, tilt servo on channel 3
+- **Servo direction**: If movement is inverted, check servo mounting orientation
+
+#### Hailo NPU Issues
+```bash
+# Check Hailo installation
+python3 -c "import hailo_platform"
+
+# Verify model files exist
+ls -la resources/models/hailo8/
+
+# Check Hailo logs
+tail -f hailort.log
+```
+
+#### Performance Issues
+- **High CPU usage**: Lower camera resolution in config.py
+- **Slow frame rate**: Reduce CAMERA_FPS or image processing complexity
+- **Memory issues**: Check available RAM and swap usage
+- **Thermal throttling**: Monitor CPU temperature
+
+### System Monitoring
+```bash
+# Check system resources
+htop
+
+# Monitor CPU temperature
+vcgencmd measure_temp
+
+# Check memory usage
+free -h
+
+# View application logs
+tail -f ball_tracking.log
+```
 
 ## Advanced Configuration
 
-### Custom Detection Classes
-Modify `ball_detector.py` to detect different objects:
+### Custom Detection Objects
+Modify detection targets in `hailo_detector.py`:
 ```python
-HAILO_BALL_CLASS_NAME = "tennis ball"  # or other sports equipment
+# Change target class for different sports equipment
+TARGET_CLASS_NAME = "tennis ball"  # or "baseball", "basketball"
 ```
 
 ### Servo Calibration
-Adjust servo limits in `config.py`:
+Fine-tune servo ranges in `config.py`:
 ```python
-PAN_MIN_ANGLE = 0
-PAN_MAX_ANGLE = 180
-TILT_MIN_ANGLE = 45
-TILT_MAX_ANGLE = 135
+# Adjust based on your pan-tilt bracket limitations
+PAN_MIN = 20        # Minimum safe pan angle
+PAN_MAX = 160       # Maximum safe pan angle
+TILT_MIN = 30       # Minimum safe tilt angle
+TILT_MAX = 150      # Maximum safe tilt angle
+
+# Fine-tune tracking sensitivity
+TRACKING_DEADZONE = 30      # Reduce for more sensitive tracking
+TRACKING_SENSITIVITY = 0.8  # Increase for faster response
 ```
 
 ### Color Detection Tuning
-Use HSV color picker tools to find optimal color ranges:
+Use HSV color picker tools to optimize color detection:
 ```python
-BALL_COLOR_HSV_LOWER = (hue_min, sat_min, val_min)
-BALL_COLOR_HSV_UPPER = (hue_max, sat_max, val_max)
+# Orange ping pong ball (typical values)
+BALL_COLOR_LOWER = (15, 100, 100)  # Lower HSV bound
+BALL_COLOR_UPPER = (35, 255, 255)  # Upper HSV bound
+
+# White ping pong ball
+# BALL_COLOR_LOWER = (0, 0, 200)
+# BALL_COLOR_UPPER = (180, 30, 255)
 ```
 
-## System Service Installation
+## System Service Setup
 
-To run as a system service:
+To run the tracking system as a background service:
 
+1. **Create service file**:
+   ```bash
+   sudo nano /etc/systemd/system/ball-tracker.service
+   ```
+
+2. **Service configuration**:
+   ```ini
+   [Unit]
+   Description=Ping Pong Ball Tracking System
+   After=network.target
+   
+   [Service]
+   Type=simple
+   User=spark
+   WorkingDirectory=/home/spark/RR2025/ObjectDetectionAndTracking
+   ExecStart=/usr/bin/python3 main.py
+   Restart=always
+   RestartSec=5
+   
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+3. **Enable and start service**:
+   ```bash
+   sudo systemctl enable ball-tracker
+   sudo systemctl start ball-tracker
+   
+   # Check status
+   sudo systemctl status ball-tracker
+   
+   # View logs
+   sudo journalctl -u ball-tracker -f
+   ```
+
+## API Reference
+
+The system provides REST API endpoints for integration:
+
+### Status Endpoints
+- `GET /api/status` - System status and statistics
+- `GET /api/config` - Current configuration parameters
+
+### Control Endpoints  
+- `POST /api/start_tracking` - Start ball tracking
+- `POST /api/stop_tracking` - Stop ball tracking
+- `POST /api/center_camera` - Center pan-tilt servos
+- `POST /api/config` - Update configuration parameters
+
+### Example API Usage
 ```bash
-sudo cp ball-tracker.service /etc/systemd/system/
-sudo systemctl enable ball-tracker
-sudo systemctl start ball-tracker
+# Get system status
+curl http://localhost:5000/api/status
 
-# Check status
-sudo systemctl status ball-tracker
+# Start tracking
+curl -X POST http://localhost:5000/api/start_tracking
 
-# View logs
-sudo journalctl -u ball-tracker -f
+# Center camera
+curl -X POST http://localhost:5000/api/center_camera
 ```
 
-## API Endpoints
+## Contributing
 
-The web interface provides REST API endpoints:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly on actual hardware
+5. Submit a pull request
 
-- `GET /api/status` - System status
-- `POST /api/start_tracking` - Start tracking
-- `POST /api/stop_tracking` - Stop tracking
-- `POST /api/center_camera` - Center servos
-- `GET /api/config` - Get configuration
-- `POST /api/config` - Update configuration
+## License
 
-## File Structure
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-```
-ObjectDetection&Tracking/
-├── main.py                   # Main application
-├── config.py                 # Configuration
-├── camera_manager.py         # Camera handling
-├── ball_detector.py          # Detection algorithms
-├── servo_controller.py       # Servo control
-├── ball_tracker.py          # Tracking coordination
-├── web_interface.py         # Web server
+## Acknowledgments
+
+- Hailo AI for NPU acceleration technology
+- Adafruit for PCA9685 CircuitPython libraries
+- Raspberry Pi Foundation for the excellent hardware platform
+- OpenCV community for computer vision tools
 ├── requirements.txt         # Python dependencies
 ├── setup.sh                # Setup script
 ├── start_tracking.sh       # Startup script
