@@ -28,11 +28,21 @@ INPUT_SIZE = (640, 640)  # Model input size
 MAX_DETECTIONS = 100  # Maximum detections per frame
 HAILO_BALL_CLASS_NAME = "sports ball"  # COCO class name for sports ball
 
-# Servo control settings
+# PCA9685 control settings
 PCA9685_ADDRESS = 0x40  # I2C address of PCA9685
-PCA9685_FREQUENCY = 50  # PWM frequency in Hz
+PCA9685_FREQUENCY = 50  # PWM frequency in Hz for servos
+MOTOR_PWM_FREQUENCY = 1000  # PWM frequency in Hz for motors
 PAN_SERVO_CHANNEL = 2  # PCA9685 channel for pan servo
 TILT_SERVO_CHANNEL = 3  # PCA9685 channel for tilt servo
+
+# Motor configuration for ball following robot
+ENABLE_MOTOR_FOLLOWING = True  # Enable robot movement to follow ball
+MOTOR_CONFIG = {
+    "front_right": {"channel": 15, "in1": 14, "in2": 13},
+    "front_left": {"channel": 4, "in1": 5, "in2": 6},
+    "rear_right": {"channel": 10, "in1": 12, "in2": 11},
+    "rear_left": {"channel": 9, "in1": 7, "in2": 8},
+}
 
 # Servo angle limits
 PAN_MIN_ANGLE = 0      # Minimum pan angle
@@ -48,6 +58,14 @@ PAN_GAIN = 0.1         # Proportional gain for pan control
 TILT_GAIN = 0.1        # Proportional gain for tilt control
 PAN_SENSITIVITY = 15   # Degrees per full frame width
 TILT_SENSITIVITY = 10  # Degrees per full frame height
+
+# Motor control settings for ball following
+MOTOR_FOLLOW_SPEED = 40        # Default speed for following movements (0-100)
+MOTOR_DEADZONE_X = 0.15        # Horizontal deadzone as fraction of frame width
+MOTOR_DEADZONE_Y = 0.15        # Vertical deadzone as fraction of frame height
+MOTOR_MAX_SPEED = 60           # Maximum motor speed (0-100)
+MOTOR_MIN_BALL_SIZE = 500      # Minimum ball area to start following
+FOLLOW_DISTANCE_THRESHOLD = 0.3  # Ball size threshold to stop moving forward
 MAX_SERVO_STEP = 5     # Maximum servo movement per frame (degrees)
 SERVO_SMOOTHING = 0.3  # Smoothing factor for servo movement (0-1)
 TRACKING_SMOOTH_TIME = 0.3  # Seconds for smooth tracking movements

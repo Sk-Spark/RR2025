@@ -47,10 +47,12 @@ from servo_controller import BallTrackingServoController
 from ball_detector import HailoBallDetector, BallDetector
 from ball_tracker import BallTracker
 from web_interface import WebServer
+from motor_controller import MotorController
 
 # Global system components
 camera_manager: Optional[CameraManager] = None
 servo_controller: Optional[BallTrackingServoController] = None
+motor_controller: Optional[MotorController] = None
 ball_detector: Optional[BallDetector] = None
 ball_tracker: Optional[BallTracker] = None
 web_server: Optional[WebServer] = None
@@ -58,7 +60,7 @@ web_server: Optional[WebServer] = None
 
 def initialize_system():
     """Initialize all system components"""
-    global camera_manager, servo_controller, ball_detector, ball_tracker, web_server
+    global camera_manager, servo_controller, motor_controller, ball_detector, ball_tracker, web_server
     
     logger.info("Initializing ping pong ball tracking system...")
     
@@ -71,6 +73,24 @@ def initialize_system():
         logger.info("Initializing servo controller...")
         servo_controller = BallTrackingServoController()
         
+        # Initialize motor controller for robot following (if enabled)
+        motor_controller = None
+        if config.ENABLE_MOTOR_FOLLOWING:
+            try:
+                logger.info("Initializing motor controller...")
+                motor_controller = MotorController(
+                    motor_config=config.MOTOR_CONFIG,
+                    i2c_address=config.PCA9685_ADDRESS,
+                    frequency=config.MOTOR_PWM_FREQUENCY
+                )
+                logger.info("Motor controller initialized - robot will follow ball")
+            except Exception as e:
+                logger.warning(f"Could not initialize motor controller: {e}")
+                logger.warning("Camera tracking will work, but robot won't move")
+                config.ENABLE_MOTOR_FOLLOWING = False
+        else:
+            logger.info("Motor following disabled in config")
+        
         # Initialize ball detector
         logger.info("Initializing ball detector...")
         ball_detector = HailoBallDetector()
@@ -78,7 +98,7 @@ def initialize_system():
         
         # Initialize ball tracker
         logger.info("Initializing ball tracker...")
-        ball_tracker = BallTracker(camera_manager, servo_controller, ball_detector)
+        ball_tracker = BallTracker(camera_manager, servo_controller, ball_detector, motor_controller)
         
         # Initialize web server
         logger.info("Initializing web server...")
@@ -112,6 +132,9 @@ def start_system():
         logger.info(f"Camera Resolution: {config.CAMERA_RESOLUTION}")
         logger.info(f"Detection Method: Hailo NPU")
         logger.info(f"Servo Channels: Pan={config.PAN_SERVO_CHANNEL}, Tilt={config.TILT_SERVO_CHANNEL}")
+        logger.info(f"Motor Following: {'ENABLED' if config.ENABLE_MOTOR_FOLLOWING else 'DISABLED'}")
+        if config.ENABLE_MOTOR_FOLLOWING:
+            logger.info(f"Motor Channels: {config.MOTOR_CONFIG}")
         logger.info("=" * 50)
         
     except Exception as e:
@@ -122,7 +145,7 @@ def start_system():
 
 def cleanup_system():
     """Cleanup all system components"""
-    global camera_manager, servo_controller, ball_tracker, web_server
+    global camera_manager, servo_controller, motor_controller, ball_tracker, web_server
     
     logger.info("Cleaning up system...")
     
@@ -136,6 +159,11 @@ def cleanup_system():
         if web_server:
             web_server.stop()
             web_server = None
+        
+        # Cleanup motor controller
+        if motor_controller:
+            motor_controller.cleanup()
+            motor_controller = None
         
         # Cleanup servo controller
         if servo_controller:
