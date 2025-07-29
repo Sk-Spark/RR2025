@@ -276,13 +276,13 @@ class BallTracker:
         rotation_gain = min_rotation_gain + (max_rotation_gain - min_rotation_gain) * distance_factor
         
         # Dynamic forward gain based on ball distance using configurable min/max values
-        # Far ball (small size_ratio) = min forward gain, Close ball (large size_ratio) = max forward gain
+        # Far ball (small size_ratio) = max forward gain, Close ball (large size_ratio) = min forward gain
         min_forward_gain = getattr(config, 'MIN_FORWARD_GAIN', 0.3)
         max_forward_gain = getattr(config, 'MAX_FORWARD_GAIN', 1.0)
         
-        # Calculate dynamic forward gain based on ball size
-        # When ball is small (far), use min_forward_gain for slower approach. When ball is large (close), use max_forward_gain for faster movement
-        forward_gain_dynamic = min_forward_gain + (max_forward_gain - min_forward_gain) * distance_factor
+        # Calculate dynamic forward gain based on ball size (INVERTED logic for forward movement)
+        # When ball is small (far), use max_forward_gain for faster approach. When ball is large (close), use min_forward_gain for slower movement
+        forward_gain_dynamic = max_forward_gain - (max_forward_gain - min_forward_gain) * distance_factor
         
         # Determine movement speeds with gains
         move_x = 0

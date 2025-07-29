@@ -66,7 +66,7 @@ MOTOR_DEADZONE_Y = 0.15        # Vertical deadzone as fraction of frame height
 MOTOR_MAX_SPEED = 100           # Maximum motor speed (0-100)
 MOTOR_MIN_BALL_SIZE = 500      # Minimum ball area to start following
 FOLLOW_DISTANCE_THRESHOLD = 0.3  # Ball size threshold to stop moving forward
-MOTOR_MOVEMENT_TIMEOUT = 0.1  # Seconds to wait before stopping movement
+MOTOR_MOVEMENT_TIMEOUT = 0.2  # Seconds to wait before stopping movement
 
 # Movement type configuration for ball tracking
 MOVEMENT_TYPE = "mecanum"
@@ -94,7 +94,7 @@ MAX_ROTATION_GAIN = 0.6          # Maximum rotation gain when ball is close
 # Smooth transition between min and max based on ball distance
 
 # Dynamic forward gain settings based on ball distance
-MIN_FORWARD_GAIN = 0.5           # Minimum forward gain when ball is far away
+MIN_FORWARD_GAIN = 0.7           # Minimum forward gain when ball is far away
 MAX_FORWARD_GAIN = 1.0           # Maximum forward gain when ball is close
 # Note: These values provide dynamic forward movement based on ball distance
 # MIN_FORWARD_GAIN is used when ball is far (small in frame) - slower approach
