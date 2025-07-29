@@ -186,12 +186,12 @@ class BallTracker:
         logger.info(f"🏓 BALL DETECTED: Position=({x},{y}) Radius={radius}px Frame=({frame_width}x{frame_height})")
         
         # Update servo target position using the correct method name
-        self.servo_controller.track_target(
-            filtered_position[0], 
-            filtered_position[1],
-            frame_width, 
-            frame_height
-        )
+        # self.servo_controller.track_target(
+        #     filtered_position[0], 
+        #     filtered_position[1],
+        #     frame_width, 
+        #     frame_height
+        # )
         
         # Add motor control for robot following (if enabled)
         if config.ENABLE_MOTOR_FOLLOWING and self.motor_controller:
@@ -226,7 +226,7 @@ class BallTracker:
     
     def _track_with_motors(self, ball_x, ball_y, ball_radius, frame_width, frame_height):
         """
-        Handle robot movement to follow ball
+        Handle robot movement to follow ball using configurable movement type
         
         Args:
             ball_x (int): Ball center X coordinate
@@ -237,6 +237,17 @@ class BallTracker:
         """
         if not self.motor_controller:
             return
+        
+        # Get movement configuration from config
+        movement_type = getattr(config, 'MOVEMENT_TYPE', 'mecanum')
+        enable_rotation = getattr(config, 'ENABLE_ROTATION_TRACKING', True)
+        enable_forward_back = getattr(config, 'ENABLE_FORWARD_BACKWARD', True)
+        enable_strafing = getattr(config, 'ENABLE_STRAFING', True)
+        
+        # Get movement gains from config
+        rotation_gain = getattr(config, 'ROTATION_GAIN', 0.8)
+        forward_gain = getattr(config, 'FORWARD_GAIN', 0.6)
+        strafe_gain = getattr(config, 'STRAFE_GAIN', 0.8)
         
         # Calculate frame center
         center_x = frame_width // 2
@@ -250,56 +261,120 @@ class BallTracker:
         deadzone_x = frame_width * config.MOTOR_DEADZONE_X
         deadzone_y = frame_height * config.MOTOR_DEADZONE_Y
         
-        # Determine movement speeds
+        # Determine movement speeds with gains
         move_x = 0
         move_y = 0
+        rotation = 0
         
-        # Horizontal movement (strafe left/right)
-        if abs(error_x) > deadzone_x:
-            move_x = int((error_x / center_x) * config.MOTOR_FOLLOW_SPEED)
+        # Horizontal movement (strafe left/right) - only if strafing enabled
+        if enable_strafing and abs(error_x) > deadzone_x:
+            move_x = int((error_x / center_x) * config.MOTOR_FOLLOW_SPEED * strafe_gain)
             move_x = max(-config.MOTOR_MAX_SPEED, min(config.MOTOR_MAX_SPEED, move_x))
         
-        # Vertical movement (forward/backward based on ball size)
-        ball_area = 3.14159 * ball_radius * ball_radius  # Approximate ball area
-        ball_size_ratio = ball_area / (frame_width * frame_height)
+        # Rotation for centering ball horizontally - only if rotation enabled
+        if enable_rotation and abs(error_x) > deadzone_x:
+            rotation = int((error_x / center_x) * config.MOTOR_FOLLOW_SPEED * rotation_gain)
+            rotation = max(-config.MOTOR_MAX_SPEED, min(config.MOTOR_MAX_SPEED, rotation))
         
-        if ball_size_ratio < config.FOLLOW_DISTANCE_THRESHOLD:
-            # Ball is small/far - move forward
-            if abs(error_y) > deadzone_y:
-                move_y = config.MOTOR_FOLLOW_SPEED
-            else:
-                move_y = config.MOTOR_FOLLOW_SPEED // 2  # Slow forward movement
-        elif ball_size_ratio > config.FOLLOW_DISTANCE_THRESHOLD * 2:
-            # Ball is large/close - move backward
-            move_y = -config.MOTOR_FOLLOW_SPEED // 2
+        # Vertical movement (forward/backward based on ball size) - only if forward/back enabled
+        if enable_forward_back:
+            ball_area = 3.14159 * ball_radius * ball_radius  # Approximate ball area
+            ball_size_ratio = ball_area / (frame_width * frame_height)
+            
+            if ball_size_ratio < config.FOLLOW_DISTANCE_THRESHOLD:
+                # Ball is small/far - move forward
+                if abs(error_y) > deadzone_y:
+                    move_y = int(config.MOTOR_FOLLOW_SPEED * forward_gain)
+                else:
+                    move_y = int(config.MOTOR_FOLLOW_SPEED * forward_gain // 2)  # Slow forward movement
+            elif ball_size_ratio > config.FOLLOW_DISTANCE_THRESHOLD * 2:
+                # Ball is large/close - move backward
+                move_y = int(-config.MOTOR_FOLLOW_SPEED * forward_gain // 2)
         
-        # Execute movement if needed
-        if move_x != 0 or move_y != 0:
-            self._execute_movement(move_x, move_y)
-            logger.debug(f"Robot movement: X={move_x}, Y={move_y} (ball at {ball_x},{ball_y}, size_ratio={ball_size_ratio:.3f})")
+        logger.debug(f"Calculated movement: X={move_x}, Y={move_y}, Rot={rotation}, Size Ratio={ball_size_ratio:.3f} ")
+        
+        # Execute movement based on configured movement type
+        if movement_type == "mecanum" and (move_x != 0 or move_y != 0 or rotation != 0):
+            # Use enhanced mecanum movement with all parameters
+            self._execute_mecanum_movement(move_x, move_y, rotation)
+            
+        elif movement_type == "tank" and (move_y != 0 or rotation != 0):
+            # Use tank-style movement
+            self._execute_tank_movement(move_y, rotation)
+            
+        elif movement_type == "simple" and (move_x != 0 or move_y != 0):
+            # Use simple directional movement
+            self._execute_simple_movement(move_x, move_y, error_x, error_y, deadzone_x, deadzone_y)
+            
+        elif movement_type == "strafe_only" and move_x != 0:
+            # Only strafe movement
+            self._execute_strafe_movement(move_x)
+            
+        elif movement_type == "turn_only" and rotation != 0:
+            # Only rotation movement
+            self._execute_rotation_movement(rotation)
+            
         else:
+            # No movement needed or invalid configuration
             self._stop_movement_after_delay()
+            return
+        
+        logger.debug(f"Robot movement [{movement_type}]: X={move_x}, Y={move_y}, Rot={rotation} "
+                    f"(ball at {ball_x},{ball_y}, size_ratio={ball_area/(frame_width*frame_height):.3f})")
     
-    def _execute_movement(self, move_x, move_y):
-        """Execute robot movement with timeout"""
+    def _execute_mecanum_movement(self, move_x, move_y, rotation):
+        """Execute mecanum movement with timeout"""
+        logger.debug(f"Executing mecanum movement: X={move_x}, Y={move_y}, Rot={rotation}")
         if self.motor_controller:
-            self.motor_controller.mecanum_move(move_x, move_y, 0)
-            self.movement_active = True
-            
-            # Cancel existing timer
-            if self.movement_timer:
-                self.movement_timer.cancel()
-            
-            # Set new timer to stop movement after short delay
-            self.movement_timer = threading.Timer(0.5, self._stop_movement)
-            self.movement_timer.start()
+            # self.motor_controller.mecanum_move(move_x, move_y, rotation)
+            self.motor_controller.mecanum_move(move_x, move_y, rotation)
+            self._set_movement_timer()
     
-    def _stop_movement_after_delay(self):
-        """Stop movement after a delay if no new commands"""
-        if not self.movement_timer:
-            self.movement_timer = threading.Timer(0.2, self._stop_movement)
-            self.movement_timer.start()
+    def _execute_tank_movement(self, forward_speed, rotation_speed):
+        """Execute tank-style movement with timeout"""
+        if self.motor_controller:
+            self.motor_controller.tank_move(forward_speed, rotation_speed)
+            self._set_movement_timer()
     
+    def _execute_simple_movement(self, move_x, move_y, error_x, error_y, deadzone_x, deadzone_y):
+        """Execute simple directional movement with timeout"""
+        if self.motor_controller:
+            # Prioritize the larger error
+            if abs(error_x) > abs(error_y) and abs(error_x) > deadzone_x:
+                # Horizontal movement
+                direction = "right" if move_x > 0 else "left"
+                self.motor_controller.simple_move(direction, abs(move_x))
+            elif abs(error_y) > deadzone_y:
+                # Vertical movement
+                direction = "forward" if move_y > 0 else "backward"
+                self.motor_controller.simple_move(direction, abs(move_y))
+            self._set_movement_timer()
+    
+    def _execute_strafe_movement(self, move_x):
+        """Execute strafe-only movement with timeout"""
+        if self.motor_controller:
+            self.motor_controller.mecanum_move(move_x, 0, 0)
+            self._set_movement_timer()
+    
+    def _execute_rotation_movement(self, rotation):
+        """Execute rotation-only movement with timeout"""
+        if self.motor_controller:
+            self.motor_controller.mecanum_move(0, 0, rotation)
+            self._set_movement_timer()
+    
+    def _set_movement_timer(self):
+        """Set movement timer and mark movement as active"""
+        self.movement_active = True
+        
+        # Cancel existing timer
+        if self.movement_timer:
+            self.movement_timer.cancel()
+        
+        # Set new timer to stop movement after short delay
+        movement_timeout = getattr(config, 'MOTOR_MOVEMENT_TIMEOUT', 0.2)
+        self.movement_timer = threading.Timer(movement_timeout, self._stop_movement)
+        self.movement_timer.start()
+            
     def _stop_movement(self):
         """Stop robot movement"""
         if self.motor_controller and self.movement_active:
@@ -372,8 +447,22 @@ class BallTracker:
             # Draw motor status if enabled
             if config.ENABLE_MOTOR_FOLLOWING and self.motor_controller:
                 motor_color = (0, 255, 0) if self.movement_active else (255, 255, 255)
-                cv2.putText(frame, f"Motors: {'ACTIVE' if self.movement_active else 'READY'}", 
+                movement_type = getattr(config, 'MOVEMENT_TYPE', 'mecanum')
+                cv2.putText(frame, f"Motors: {'ACTIVE' if self.movement_active else 'READY'} [{movement_type.upper()}]", 
                            (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.6, motor_color, 1)
+                
+                # Show movement capabilities
+                capabilities = []
+                if getattr(config, 'ENABLE_STRAFING', True):
+                    capabilities.append("S")  # Strafing
+                if getattr(config, 'ENABLE_FORWARD_BACKWARD', True):
+                    capabilities.append("F")  # Forward/Backward
+                if getattr(config, 'ENABLE_ROTATION_TRACKING', True):
+                    capabilities.append("R")  # Rotation
+                
+                if capabilities:
+                    cv2.putText(frame, f"Modes: {'/'.join(capabilities)}", 
+                               (10, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
             
         except Exception as e:
             logger.error(f"Error drawing servo status: {e}")
@@ -419,7 +508,18 @@ class BallTracker:
             'last_detection_time': self.last_detection_time,
             'detection_history_length': len(self.detection_history),
             'motor_following': config.ENABLE_MOTOR_FOLLOWING,
-            'movement_active': self.movement_active
+            'movement_active': self.movement_active,
+            'movement_type': getattr(config, 'MOVEMENT_TYPE', 'mecanum'),
+            'movement_capabilities': {
+                'strafing': getattr(config, 'ENABLE_STRAFING', True),
+                'forward_backward': getattr(config, 'ENABLE_FORWARD_BACKWARD', True),
+                'rotation': getattr(config, 'ENABLE_ROTATION_TRACKING', True)
+            },
+            'movement_gains': {
+                'strafe': getattr(config, 'STRAFE_GAIN', 0.8),
+                'forward': getattr(config, 'FORWARD_GAIN', 0.6),
+                'rotation': getattr(config, 'ROTATION_GAIN', 0.8)
+            }
         }
         
         if self.processing_times:

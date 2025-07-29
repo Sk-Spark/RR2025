@@ -185,9 +185,67 @@ class MotorController:
                 direction = "forward" if speed > 0 else "backward"
                 self.set_motor_speed(motor_name, abs(speed), direction)
     
-    def follow_ball(self, ball_x, ball_y, frame_width, frame_height, speed=40):
+    def tank_move(self, forward_speed=0, rotation_speed=0):
         """
-        Move robot to follow the ball based on ball position
+        Tank-style movement (forward/backward + rotation, no strafing)
+        
+        Args:
+            forward_speed (int): Forward/backward speed (-100 to 100)
+            rotation_speed (int): Rotation speed (-100 to 100, negative = counterclockwise)
+        """
+        # Clamp speeds to valid range
+        forward_speed = max(-100, min(100, forward_speed))
+        rotation_speed = max(-100, min(100, rotation_speed))
+        
+        # Calculate left and right side speeds
+        left_speed = forward_speed + rotation_speed
+        right_speed = forward_speed - rotation_speed
+        
+        # Normalize speeds to stay within -100 to 100 range
+        max_speed = max(abs(left_speed), abs(right_speed))
+        if max_speed > 100:
+            left_speed = int((left_speed / max_speed) * 100)
+            right_speed = int((right_speed / max_speed) * 100)
+        
+        # Apply speeds to motors
+        motors_speeds = {
+            "front_left": left_speed,
+            "rear_left": left_speed,
+            "front_right": right_speed,
+            "rear_right": right_speed
+        }
+        
+        for motor_name, speed in motors_speeds.items():
+            if speed == 0:
+                self.stop_motor(motor_name)
+            else:
+                direction = "forward" if speed > 0 else "backward"
+                self.set_motor_speed(motor_name, abs(speed), direction)
+    
+    def simple_move(self, direction, speed=50):
+        """
+        Simple directional movement (forward, backward, left, right)
+        
+        Args:
+            direction (str): Direction to move ("forward", "backward", "left", "right")
+            speed (int): Movement speed (0-100)
+        """
+        self.stop_all_motors()
+        
+        if direction == "forward":
+            self.move_forward(speed)
+        elif direction == "backward":
+            self.move_backward(speed)
+        elif direction == "left":
+            self.strafe_left(speed)
+        elif direction == "right":
+            self.strafe_right(speed)
+        else:
+            raise ValueError(f"Invalid direction: {direction}. Use 'forward', 'backward', 'left', or 'right'")
+    
+    def follow_ball(self, ball_x, ball_y, frame_width, frame_height, speed=40, movement_type="mecanum"):
+        """
+        Move robot to follow the ball based on ball position using specified movement type
         
         Args:
             ball_x (int): Ball X position in pixels
@@ -195,6 +253,7 @@ class MotorController:
             frame_width (int): Frame width in pixels
             frame_height (int): Frame height in pixels
             speed (int): Movement speed (0-100)
+            movement_type (str): Type of movement ("mecanum", "tank", "simple", "strafe_only", "turn_only")
         """
         # Calculate center positions
         center_x = frame_width // 2
@@ -211,22 +270,59 @@ class MotorController:
         # Calculate movement speeds based on error
         move_x = 0
         move_y = 0
+        rotation = 0
         
-        # Horizontal movement (strafe left/right)
+        # Horizontal movement calculation
         if abs(error_x) > deadzone_x:
             move_x = int((error_x / center_x) * speed)
             move_x = max(-speed, min(speed, move_x))
+            rotation = int((error_x / center_x) * speed * 0.8)  # Rotation for tank mode
+            rotation = max(-speed, min(speed, rotation))
         
-        # Vertical movement (forward/backward)
-        # Note: If ball is higher in frame (lower y), move forward
+        # Vertical movement calculation
         if abs(error_y) > deadzone_y:
             move_y = -int((error_y / center_y) * speed)  # Negative because y is inverted
             move_y = max(-speed, min(speed, move_y))
         
-        # Use mecanum movement to follow the ball
-        self.mecanum_move(move_x, move_y, 0)
+        # Execute movement based on type
+        if movement_type == "mecanum":
+            # Full mecanum movement with strafing and rotation
+            self.mecanum_move(move_x, move_y, rotation // 2)
+            
+        elif movement_type == "tank":
+            # Tank-style movement (forward/back + rotation only)
+            self.tank_move(move_y, rotation)
+            
+        elif movement_type == "simple":
+            # Simple directional movement (one direction at a time)
+            if abs(error_x) > abs(error_y) and abs(error_x) > deadzone_x:
+                # Prioritize horizontal movement
+                direction = "right" if error_x > 0 else "left"
+                self.simple_move(direction, abs(move_x))
+            elif abs(error_y) > deadzone_y:
+                # Vertical movement
+                direction = "forward" if move_y > 0 else "backward"
+                self.simple_move(direction, abs(move_y))
+            else:
+                self.stop_all_motors()
+                
+        elif movement_type == "strafe_only":
+            # Only left/right strafing movement
+            if abs(error_x) > deadzone_x:
+                self.mecanum_move(move_x, 0, 0)
+            else:
+                self.stop_all_motors()
+                
+        elif movement_type == "turn_only":
+            # Only rotation movement
+            if abs(error_x) > deadzone_x:
+                self.mecanum_move(0, 0, rotation)
+            else:
+                self.stop_all_motors()
+        else:
+            raise ValueError(f"Invalid movement type: {movement_type}")
         
-        return move_x, move_y
+        return move_x, move_y, rotation
     
     def cleanup(self):
         """Clean up resources"""

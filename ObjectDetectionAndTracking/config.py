@@ -2,7 +2,7 @@
 # Edit these values to customize the system behavior
 
 # Camera configuration - High resolution for better quality
-CAMERA_RESOLUTION = (640, 640)  # Full resolution for better quality
+CAMERA_RESOLUTION = (1280, 1280)  # Full resolution for better quality
 CAMERA_FRAMERATE = 30
 CAMERA_FORMAT = "RGB888"  # Explicit format specification
 CAMERA_ROTATION = 0  # Rotation in degrees (0, 90, 180, 270)
@@ -15,7 +15,7 @@ USE_FRAME_SKIPPING = False  # Disable frame skipping for maximum responsiveness
 
 # Ball detection settings - Hailo NPU only
 BALL_MIN_RADIUS = 10  # Minimum ball radius in pixels
-BALL_MAX_RADIUS = 100  # Maximum ball radius in pixels
+BALL_MAX_RADIUS = 150  # Maximum ball radius in pixels
 
 # Hailo NPU detection settings
 USE_HAILO_DETECTION = True  # Always True - only Hailo NPU detection
@@ -60,12 +60,30 @@ PAN_SENSITIVITY = 15   # Degrees per full frame width
 TILT_SENSITIVITY = 10  # Degrees per full frame height
 
 # Motor control settings for ball following
-MOTOR_FOLLOW_SPEED = 40        # Default speed for following movements (0-100)
+MOTOR_FOLLOW_SPEED = 100        # Default speed for following movements (0-100)
 MOTOR_DEADZONE_X = 0.15        # Horizontal deadzone as fraction of frame width
 MOTOR_DEADZONE_Y = 0.15        # Vertical deadzone as fraction of frame height
-MOTOR_MAX_SPEED = 60           # Maximum motor speed (0-100)
+MOTOR_MAX_SPEED = 100           # Maximum motor speed (0-100)
+MOTOR_MOVEMENT_TIMEOUT = 0.1  # Seconds to wait before stopping movement
 MOTOR_MIN_BALL_SIZE = 500      # Minimum ball area to start following
 FOLLOW_DISTANCE_THRESHOLD = 0.3  # Ball size threshold to stop moving forward
+
+# Movement type configuration for ball tracking
+MOVEMENT_TYPE = "mecanum"
+# Movement type descriptions:
+# - "mecanum": Full mecanum wheel movement (strafe + forward/back + rotation)
+# - "tank": Tank-style movement (forward/back + rotation only, no strafing)
+# - "simple": Simple directional movement (forward/back/left/right only)
+# - "strafe_only": Only left/right strafing movement (for fixed position tracking)
+# - "turn_only": Only rotation movement (for stationary ball tracking)
+
+# Movement behavior settings
+ENABLE_ROTATION_TRACKING = True   # Enable rotation to center ball horizontally
+ENABLE_FORWARD_BACKWARD = True    # Enable forward/backward movement based on ball distance
+ENABLE_STRAFING = True           # Enable left/right strafing movement
+ROTATION_GAIN = 0.3              # Gain for rotational tracking (0.1-2.0)
+FORWARD_GAIN = 0.8               # Gain for forward/backward movement (0.1-2.0)
+STRAFE_GAIN = 0.5                # Gain for strafing movement (0.1-2.0)
 MAX_SERVO_STEP = 5     # Maximum servo movement per frame (degrees)
 SERVO_SMOOTHING = 0.3  # Smoothing factor for servo movement (0-1)
 TRACKING_SMOOTH_TIME = 0.3  # Seconds for smooth tracking movements
