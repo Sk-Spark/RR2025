@@ -245,9 +245,9 @@ class BallTracker:
         enable_strafing = getattr(config, 'ENABLE_STRAFING', True)
         
         # Get movement gains from config
-        rotation_gain = getattr(config, 'ROTATION_GAIN', 0.8)
-        forward_gain = getattr(config, 'FORWARD_GAIN', 0.6)
+        base_rotation_gain = getattr(config, 'ROTATION_GAIN', 0.8)
         strafe_gain = getattr(config, 'STRAFE_GAIN', 0.8)
+        # Note: forward_gain is now calculated dynamically based on ball distance
         
         # Calculate frame center
         center_x = frame_width // 2
@@ -260,6 +260,29 @@ class BallTracker:
         # Calculate deadzone pixels
         deadzone_x = frame_width * config.MOTOR_DEADZONE_X
         deadzone_y = frame_height * config.MOTOR_DEADZONE_Y
+        
+        # Calculate ball distance ratio for dynamic rotation gain
+        ball_area = 3.14159 * ball_radius * ball_radius  # Approximate ball area
+        ball_size_ratio = ball_area / (frame_width * frame_height)
+        
+        # Dynamic rotation gain based on ball distance using configurable min/max values
+        # Far ball (small size_ratio) = min rotation, Close ball (large size_ratio) = max rotation
+        min_rotation_gain = getattr(config, 'MIN_ROTATION_GAIN', 0.1)
+        max_rotation_gain = getattr(config, 'MAX_ROTATION_GAIN', 0.6)
+        
+        # Calculate dynamic rotation gain based on ball size
+        # When ball is small (far), use min_rotation_gain. When ball is large (close), use max_rotation_gain
+        distance_factor = min(1.0, ball_size_ratio / config.FOLLOW_DISTANCE_THRESHOLD)
+        rotation_gain = min_rotation_gain + (max_rotation_gain - min_rotation_gain) * distance_factor
+        
+        # Dynamic forward gain based on ball distance using configurable min/max values
+        # Far ball (small size_ratio) = min forward gain, Close ball (large size_ratio) = max forward gain
+        min_forward_gain = getattr(config, 'MIN_FORWARD_GAIN', 0.3)
+        max_forward_gain = getattr(config, 'MAX_FORWARD_GAIN', 1.0)
+        
+        # Calculate dynamic forward gain based on ball size
+        # When ball is small (far), use min_forward_gain for slower approach. When ball is large (close), use max_forward_gain for faster movement
+        forward_gain_dynamic = min_forward_gain + (max_forward_gain - min_forward_gain) * distance_factor
         
         # Determine movement speeds with gains
         move_x = 0
@@ -282,16 +305,16 @@ class BallTracker:
             ball_size_ratio = ball_area / (frame_width * frame_height)
             
             if ball_size_ratio < config.FOLLOW_DISTANCE_THRESHOLD:
-                # Ball is small/far - move forward
+                # Ball is small/far - move forward with dynamic gain
                 if abs(error_y) > deadzone_y:
-                    move_y = int(config.MOTOR_FOLLOW_SPEED * forward_gain)
+                    move_y = int(config.MOTOR_FOLLOW_SPEED * forward_gain_dynamic)
                 else:
-                    move_y = int(config.MOTOR_FOLLOW_SPEED * forward_gain // 2)  # Slow forward movement
+                    move_y = int(config.MOTOR_FOLLOW_SPEED * forward_gain_dynamic // 2)  # Slow forward movement
             elif ball_size_ratio > config.FOLLOW_DISTANCE_THRESHOLD * 2:
-                # Ball is large/close - move backward
-                move_y = int(-config.MOTOR_FOLLOW_SPEED * forward_gain // 2)
+                # Ball is large/close - move backward with dynamic gain
+                move_y = int(-config.MOTOR_FOLLOW_SPEED * forward_gain_dynamic // 2)
         
-        logger.debug(f"Calculated movement: X={move_x}, Y={move_y}, Rot={rotation}, Size Ratio={ball_size_ratio:.3f} ")
+        logger.debug(f"Calculated movement: X={move_x}, Y={move_y}, Rot={rotation}, Size Ratio={ball_size_ratio:.3f}, Rotation Gain={rotation_gain:.2f}, Forward Gain={forward_gain_dynamic:.2f}")
         
         # Execute movement based on configured movement type
         if movement_type == "mecanum" and (move_x != 0 or move_y != 0 or rotation != 0):
@@ -517,8 +540,11 @@ class BallTracker:
             },
             'movement_gains': {
                 'strafe': getattr(config, 'STRAFE_GAIN', 0.8),
-                'forward': getattr(config, 'FORWARD_GAIN', 0.6),
-                'rotation': getattr(config, 'ROTATION_GAIN', 0.8)
+                'forward_min': getattr(config, 'MIN_FORWARD_GAIN', 0.3),
+                'forward_max': getattr(config, 'MAX_FORWARD_GAIN', 1.0),
+                'rotation_min': getattr(config, 'MIN_ROTATION_GAIN', 0.3),
+                'rotation_max': getattr(config, 'MAX_ROTATION_GAIN', 0.6),
+                'rotation_base': getattr(config, 'ROTATION_GAIN', 0.8)
             }
         }
         

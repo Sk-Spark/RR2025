@@ -15,7 +15,7 @@ USE_FRAME_SKIPPING = False  # Disable frame skipping for maximum responsiveness
 
 # Ball detection settings - Hailo NPU only
 BALL_MIN_RADIUS = 10  # Minimum ball radius in pixels
-BALL_MAX_RADIUS = 150  # Maximum ball radius in pixels
+BALL_MAX_RADIUS = 300  # Maximum ball radius in pixels
 
 # Hailo NPU detection settings
 USE_HAILO_DETECTION = True  # Always True - only Hailo NPU detection
@@ -64,9 +64,9 @@ MOTOR_FOLLOW_SPEED = 100        # Default speed for following movements (0-100)
 MOTOR_DEADZONE_X = 0.15        # Horizontal deadzone as fraction of frame width
 MOTOR_DEADZONE_Y = 0.15        # Vertical deadzone as fraction of frame height
 MOTOR_MAX_SPEED = 100           # Maximum motor speed (0-100)
-MOTOR_MOVEMENT_TIMEOUT = 0.1  # Seconds to wait before stopping movement
 MOTOR_MIN_BALL_SIZE = 500      # Minimum ball area to start following
 FOLLOW_DISTANCE_THRESHOLD = 0.3  # Ball size threshold to stop moving forward
+MOTOR_MOVEMENT_TIMEOUT = 0.1  # Seconds to wait before stopping movement
 
 # Movement type configuration for ball tracking
 MOVEMENT_TYPE = "mecanum"
@@ -81,9 +81,25 @@ MOVEMENT_TYPE = "mecanum"
 ENABLE_ROTATION_TRACKING = True   # Enable rotation to center ball horizontally
 ENABLE_FORWARD_BACKWARD = True    # Enable forward/backward movement based on ball distance
 ENABLE_STRAFING = True           # Enable left/right strafing movement
-ROTATION_GAIN = 0.3              # Gain for rotational tracking (0.1-2.0)
+ROTATION_GAIN = 0.3              # Base gain for rotational tracking (0.1-2.0)
 FORWARD_GAIN = 0.8               # Gain for forward/backward movement (0.1-2.0)
 STRAFE_GAIN = 0.5                # Gain for strafing movement (0.1-2.0)
+
+# Dynamic rotation gain settings based on ball distance
+MIN_ROTATION_GAIN = 0.3          # Minimum rotation gain when ball is far away
+MAX_ROTATION_GAIN = 0.6          # Maximum rotation gain when ball is close
+# Note: These values override the multipliers (0.3x and 1.5x) of ROTATION_GAIN
+# MIN_ROTATION_GAIN is used when ball is far (small in frame)
+# MAX_ROTATION_GAIN is used when ball is close (large in frame)
+# Smooth transition between min and max based on ball distance
+
+# Dynamic forward gain settings based on ball distance
+MIN_FORWARD_GAIN = 0.5           # Minimum forward gain when ball is far away
+MAX_FORWARD_GAIN = 1.0           # Maximum forward gain when ball is close
+# Note: These values provide dynamic forward movement based on ball distance
+# MIN_FORWARD_GAIN is used when ball is far (small in frame) - slower approach
+# MAX_FORWARD_GAIN is used when ball is close (large in frame) - faster movement
+# Smooth transition between min and max based on ball distance
 MAX_SERVO_STEP = 5     # Maximum servo movement per frame (degrees)
 SERVO_SMOOTHING = 0.3  # Smoothing factor for servo movement (0-1)
 TRACKING_SMOOTH_TIME = 0.3  # Seconds for smooth tracking movements
