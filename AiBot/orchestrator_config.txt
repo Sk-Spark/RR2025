@@ -1,0 +1,35 @@
+# Interactive Test Orchestrator Configuration
+# This file documents the absolute paths used by the orchestrator
+
+# Project Configuration
+PROJECT_ROOT=/home/spark/RR2025/SemanticKernal
+SCRIPT_NAME=test_orchestrator.py
+STARTUP_SCRIPT=start_orchestrator.sh
+
+# Python Environment
+VENV_PATH=/home/spark/RR2025/SemanticKernal/env
+PYTHON_EXECUTABLE=/home/spark/RR2025/SemanticKernal/env/bin/python
+
+# Server Configuration
+DEFAULT_HOST=localhost
+DEFAULT_PORT=8080
+
+# Usage Instructions
+# 1. Using the startup script (recommended):
+#    /home/spark/RR2025/SemanticKernal/start_orchestrator.sh
+#
+# 2. Direct execution with absolute path shebang:
+#    /home/spark/RR2025/SemanticKernal/test_orchestrator.py
+#
+# 3. Manual activation and run:
+#    source /home/spark/RR2025/SemanticKernal/env/bin/activate
+#    python /home/spark/RR2025/SemanticKernal/test_orchestrator.py
+
+# Available Commands in Interactive Console:
+# help                     - Show help message
+# list                     - List connected agents
+# cmd <agent_id> <command> - Send command to agent
+# led <agent_id> <action>  - Control LED (on/off/blink)
+# status <agent_id>        - Get agent status
+# ping <agent_id>          - Ping agent
+# quit                     - Shutdown orchestrator

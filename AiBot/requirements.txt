@@ -1,44 +1,6 @@
-# AI Bot Controller Requirements
-# Core Flask dependencies
-Flask==2.3.3
-Flask-SocketIO==5.3.6
-python-socketio==5.8.0
-python-engineio==4.7.1
-Werkzeug==2.3.7
-
-# Computer vision and image processing
-opencv-python==4.8.1.78
-numpy==1.24.3
-Pillow==10.0.1
-
-# Raspberry Pi camera support
-picamera2==0.3.27
-
-# GPIO and hardware control libraries
-adafruit-blinka
-adafruit-circuitpython-busdevice
-adafruit-circuitpython-pca9685
-adafruit-circuitpython-motor
-lgpio
-RPi.GPIO
-gpiozero
-
-# I2C sensor communication
-smbus2
-
-# Additional utilities
-python-dateutil==2.8.2
-pytz==2023.3
-
-# Optional: For enhanced performance
-numba==0.57.1
-
-# Optional: For logging and monitoring
-psutil==5.9.5
-
-# Optional: For configuration management
-PyYAML==6.0.1
-
-# Development dependencies (optional)
-pytest==7.4.2
-pytest-cov==4.1.0
+# Semantic Kernel LED Control Requirements
+semantic-kernel>=1.0.0
+gpiozero>=1.6.2
+ollama>=0.1.0
+aiohttp>=3.8.0
+websockets>=11.0.0
