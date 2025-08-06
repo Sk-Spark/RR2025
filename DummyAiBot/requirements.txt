@@ -1,0 +1,18 @@
+# DummyAiBot Requirements - Pure Simulation/Testing
+# No hardware dependencies - simulation only
+
+# Async HTTP client for Ollama API
+aiohttp>=3.8.0
+
+# WebSocket client for orchestrator communication
+websockets>=11.0
+
+# Configuration and utilities
+python-dotenv>=0.19.0
+
+# Development and testing
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+
+# Note: All hardware-specific dependencies removed
+# This is a pure simulation bot for testing purposes only
