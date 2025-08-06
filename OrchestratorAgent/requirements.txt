@@ -1,0 +1,11 @@
+semantic-kernel>=1.35.1
+websockets>=15.0.1
+aiohttp>=3.12.15
+ollama>=0.5.1
+pydantic>=2.11.7
+python-dotenv>=1.1.1
+PyYAML>=6.0.2
+asyncio
+logging
+typing
+dataclasses

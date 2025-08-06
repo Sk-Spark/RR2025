@@ -1,0 +1,26 @@
+# Orchestrator Agent Configuration
+orchestrator:
+  debug: true
+  log_level: INFO
+  
+  # Agent timeouts
+  agent_registration_timeout: 30
+  agent_heartbeat_interval: 10
+  task_execution_timeout: 60
+
+# WebSocket Configuration
+websocket:
+  host: "0.0.0.0"
+  port: 8080
+  max_connections: 10
+
+# Ollama Configuration
+ollama:
+  host: "localhost"
+  port: 11434
+  model: "llama3.2:1b"
+
+# Semantic Kernel Configuration
+semantic_kernel:
+  service_id: "orchestrator_sk"
+  model_deployment_name: "gpt-3.5-turbo"
