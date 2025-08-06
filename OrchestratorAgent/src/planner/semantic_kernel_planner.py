@@ -236,7 +236,7 @@ class SemanticKernelPlanner:
             # Add Ollama chat completion service
             chat_service = OllamaChatCompletion(
                 ai_model_id=self.ollama_client.client.model,
-                base_url=self.ollama_client.client.base_url,
+                url=self.ollama_client.client.base_url,
                 service_id=self.service_id
             )
             

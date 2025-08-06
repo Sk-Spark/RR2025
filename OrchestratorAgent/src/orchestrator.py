@@ -16,6 +16,7 @@ from .agents import AgentManager, TaskManager
 from .communication import WebSocketServer, MessageRouter
 from .integrations import OllamaIntegration
 from .planner import SemanticKernelPlanner
+from .interfaces import TerminalInterface
 from .utils import (
     get_logger, initialize_logging, log_semantic_kernel_event,
     generate_unique_id, get_current_timestamp
@@ -52,6 +53,7 @@ class Orchestrator:
         self.message_router: Optional[MessageRouter] = None
         self.ollama_client: Optional[OllamaIntegration] = None
         self.planner: Optional[SemanticKernelPlanner] = None
+        self.terminal_interface: Optional[TerminalInterface] = None
         
         # System state
         self._is_running = False
@@ -65,6 +67,25 @@ class Orchestrator:
         self._background_tasks: List[asyncio.Task] = []
         
         self.logger.info("Orchestrator initialized")
+    
+    async def start_with_terminal_interface(self) -> None:
+        """Start the orchestrator with terminal interface for interactive use."""
+        if self._is_running:
+            self.logger.warning("Orchestrator is already running")
+            return
+        
+        try:
+            # Start the main orchestrator
+            await self.start()
+            
+            # Start terminal interface
+            if self.terminal_interface:
+                await self.terminal_interface.start()
+            
+        except Exception as e:
+            self.logger.error(f"Failed to start orchestrator with terminal interface: {e}")
+            await self.stop()
+            raise
     
     async def start(self) -> None:
         """Start the orchestrator and all its components."""
@@ -117,6 +138,10 @@ class Orchestrator:
         
         # Stop components in reverse order
         await self._stop_components()
+        
+        # Stop terminal interface
+        if self.terminal_interface:
+            await self.terminal_interface.stop()
         
         self.logger.info("Orchestrator stopped")
         log_semantic_kernel_event("ORCHESTRATOR_STOPPED", "Graceful shutdown completed")
@@ -265,6 +290,9 @@ class Orchestrator:
             ollama_client=self.ollama_client,
             service_id=self.config.semantic_kernel.service_id
         )
+        
+        # Initialize terminal interface
+        self.terminal_interface = TerminalInterface(self)
         
         self.logger.info("All components initialized")
     
