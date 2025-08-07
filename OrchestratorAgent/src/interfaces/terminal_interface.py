@@ -37,6 +37,7 @@ class TerminalInterface:
             'status': self._cmd_status,
             'agents': self._cmd_agents,
             'tasks': self._cmd_tasks,
+            'scenario': self._cmd_scenario,
             'create': self._cmd_create_task,
             'execute': self._cmd_execute_task,
             'cancel': self._cmd_cancel_task,
@@ -70,10 +71,12 @@ class TerminalInterface:
     def _print_welcome(self) -> None:
         """Print welcome message and help."""
         print("\\n" + "="*80)
-        print("🤖 ORCHESTRATOR AGENT - TERMINAL INTERFACE")
+        print("🤖 ORCHESTRATOR AGENT - SCENARIO MANAGEMENT INTERFACE")
         print("="*80)
-        print("Welcome to the interactive terminal interface!")
-        print("Type 'help' to see available commands or 'exit' to quit.")
+        print("Welcome to the AI Bot Fleet Orchestrator!")
+        print("🎯 I'm here to manage your AI bot minions and execute scenarios.")
+        print("📋 Type 'help' to see available commands or 'scenario <description>' to start.")
+        print("🤝 All connected agents are ready to receive tasks!")
         print("="*80 + "\\n")
     
     async def _input_loop(self) -> None:
@@ -134,9 +137,10 @@ class TerminalInterface:
         command_info = {
             'help': 'Show this help message',
             'status': 'Show system status',
-            'agents': 'List all agents and their status',
+            'agents': 'List all connected AI bot agents and their status',
             'tasks': 'List all tasks and their status',
-            'create <description>': 'Create a new task from description',
+            'scenario <description>': 'Break down a scenario into tasks and assign to agents',
+            'create <description>': 'Create a single task from description',
             'execute <task_id>': 'Execute a specific task',
             'cancel <task_id>': 'Cancel a running task',
             'orchestrate <description>': 'Create and orchestrate multiple tasks',
@@ -151,10 +155,12 @@ class TerminalInterface:
             print(f"  {cmd:<25} - {desc}")
         
         print("\\n💡 Examples:")
+        print("  scenario Navigate to kitchen, pick up the red cup, and bring it to living room")
+        print("  scenario Patrol the house and report any anomalies")
         print("  create Move robot forward 1 meter")
-        print("  orchestrate Scan room and create map")
         print("  status")
         print("  agents")
+        print("\\n🎯 Tip: Use 'scenario' for complex multi-step tasks, 'create' for single tasks")
         print("-" * 50 + "\\n")
     
     async def _cmd_status(self, args: List[str]) -> None:
@@ -177,7 +183,7 @@ class TerminalInterface:
             print(f"❌ Error getting system status: {format_error_message(e)}")
     
     async def _cmd_agents(self, args: List[str]) -> None:
-        """List all agents and their status."""
+        """List all connected AI bot agents and their status."""
         try:
             if not self.orchestrator.agent_manager:
                 print("❌ Agent manager not available")
@@ -186,12 +192,13 @@ class TerminalInterface:
             agents = self.orchestrator.agent_manager.get_all_agents()
             
             if not agents:
-                print("📭 No agents registered")
+                print("📭 No AI bot agents connected")
+                print("💡 Start some AI bot agents to see them here")
                 return
             
-            print("\\n🤖 REGISTERED AGENTS:")
+            print("\\n🤖 CONNECTED AI BOT AGENTS:")
             print("-" * 80)
-            print(f"{'Name':<20} {'ID':<15} {'Status':<10} {'Capabilities':<30}")
+            print(f"{'Bot Name':<20} {'Agent ID':<15} {'Status':<10} {'Capabilities':<30}")
             print("-" * 80)
             
             for agent in agents:
@@ -199,8 +206,15 @@ class TerminalInterface:
                 if len(agent.capabilities) > 3:
                     capabilities += f" (+{len(agent.capabilities) - 3} more)"
                 
-                print(f"{agent.name:<20} {agent.agent_id:<15} {agent.status.value:<10} {capabilities:<30}")
+                # Add emoji based on status
+                status_emoji = "🟢" if agent.status.value == "online" else "🔴"
+                
+                print(f"{agent.name:<20} {agent.agent_id:<15} {status_emoji} {agent.status.value:<8} {capabilities:<30}")
             
+            online_count = sum(1 for agent in agents if agent.status.value == "online")
+            print("-" * 80)
+            print(f"📊 Total: {len(agents)} AI bots | Online: {online_count} | Offline: {len(agents) - online_count}")
+            print("💡 All connected agents are AI bot minions with identical capabilities")
             print("-" * 80 + "\\n")
             
         except Exception as e:
@@ -217,7 +231,7 @@ class TerminalInterface:
             from ..core.models import TaskStatus
             
             pending_tasks = self.orchestrator.task_manager.get_tasks_by_status(TaskStatus.PENDING)
-            running_tasks = self.orchestrator.task_manager.get_tasks_by_status(TaskStatus.RUNNING)
+            running_tasks = self.orchestrator.task_manager.get_tasks_by_status(TaskStatus.IN_PROGRESS)
             completed_tasks = self.orchestrator.task_manager.get_tasks_by_status(TaskStatus.COMPLETED)
             failed_tasks = self.orchestrator.task_manager.get_tasks_by_status(TaskStatus.FAILED)
             cancelled_tasks = self.orchestrator.task_manager.get_tasks_by_status(TaskStatus.CANCELLED)
@@ -234,7 +248,7 @@ class TerminalInterface:
                         print(f"  ... and {len(task_list) - 5} more")
             
             print_task_list(pending_tasks, "PENDING", "⏳")
-            print_task_list(running_tasks, "RUNNING", "🔄")
+            print_task_list(running_tasks, "IN PROGRESS", "🔄")
             print_task_list(completed_tasks, "COMPLETED", "✅")
             print_task_list(failed_tasks, "FAILED", "❌")
             print_task_list(cancelled_tasks, "CANCELLED", "🚫")
@@ -246,6 +260,60 @@ class TerminalInterface:
             
         except Exception as e:
             print(f"❌ Error listing tasks: {format_error_message(e)}")
+    
+    async def _cmd_scenario(self, args: List[str]) -> None:
+        """Break down a scenario into multiple tasks and assign to available agents."""
+        if not args:
+            print("❌ Please provide a scenario description.")
+            print("💡 Example: scenario Navigate to kitchen, pick up the red cup, and bring it to the living room")
+            return
+        
+        try:
+            scenario_description = ' '.join(args)
+            print(f"🎬 Processing scenario: {scenario_description}")
+            print("-" * 80)
+            
+            # Get available agents
+            if not self.orchestrator.agent_manager:
+                print("❌ Agent manager not available")
+                return
+            
+            available_agents = self.orchestrator.agent_manager.get_all_agents()
+            if not available_agents:
+                print("❌ No AI bot agents available to execute tasks")
+                return
+            
+            print(f"🤖 Found {len(available_agents)} available AI bot agents")
+            print("🧠 Analyzing scenario and breaking it down into tasks...")
+            
+            # Use the orchestrator's scenario processing method
+            created_task_ids = await self.orchestrator.process_scenario(scenario_description)
+            
+            if not created_task_ids:
+                print("❌ Failed to break down scenario into tasks")
+                return
+            
+            print(f"✅ Scenario successfully broken down into {len(created_task_ids)} tasks!")
+            print("-" * 50)
+            
+            # Show the created tasks
+            for i, task_id in enumerate(created_task_ids, 1):
+                task = self.orchestrator.task_manager.get_task(task_id)
+                if task:
+                    print(f"{i}. {task.name}")
+                    print(f"   ID: {task_id}")
+                    print(f"   Description: {task.description}")
+                    print(f"   Required Capability: {task.capability_required}")
+                    print(f"   Status: {task.status.value}")
+                    print()
+            
+            print("🚀 All tasks created and ready for assignment!")
+            print("🔄 Tasks will be automatically assigned to available AI bot agents.")
+            print("💡 Use 'tasks' command to monitor progress.")
+            print("📊 Use 'status' command to see overall system status.")
+            
+        except Exception as e:
+            print(f"❌ Error processing scenario: {format_error_message(e)}")
     
     async def _cmd_create_task(self, args: List[str]) -> None:
         """Create a new task from description."""

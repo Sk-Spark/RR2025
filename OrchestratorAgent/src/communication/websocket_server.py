@@ -189,7 +189,7 @@ class WebSocketServer:
             'port': self.port
         }
     
-    async def _handle_connection(self, websocket, path) -> None:
+    async def _handle_connection(self, websocket) -> None:
         """Handle a new WebSocket connection."""
         connection_id = generate_unique_id("conn")
         remote_address = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"

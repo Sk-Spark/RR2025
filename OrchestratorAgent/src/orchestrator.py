@@ -226,6 +226,158 @@ class Orchestrator:
             self.logger.error(f"Error creating task from user input: {e}")
             return None
     
+    async def process_scenario(self, scenario_description: str) -> List[str]:
+        """
+        Process a user scenario by breaking it down into multiple tasks.
+        
+        Args:
+            scenario_description: Natural language description of the scenario
+            
+        Returns:
+            List of created task IDs
+        """
+        try:
+            if not self.planner or not self.task_manager or not self.agent_manager:
+                self.logger.error("Components not initialized")
+                return []
+            
+            self.logger.info(f"Processing scenario: {scenario_description}")
+            
+            # Get available agents
+            available_agents = self.agent_manager.get_all_agents()
+            if not available_agents:
+                self.logger.warning("No agents available to execute scenario tasks")
+                return []
+            
+            # Use planner to break down scenario into tasks
+            task_breakdown = await self._analyze_scenario_breakdown(scenario_description)
+            
+            if not task_breakdown:
+                self.logger.warning("Failed to break down scenario into tasks")
+                return []
+            
+            created_task_ids = []
+            
+            # Create tasks from breakdown
+            for task_info in task_breakdown:
+                task_id = self.task_manager.create_task(
+                    name=task_info['name'],
+                    description=task_info['description'],
+                    capability_required=task_info.get('capability', 'general'),
+                    parameters=task_info.get('parameters', {}),
+                    priority=task_info.get('priority', 5),
+                    dependencies=task_info.get('dependencies', [])
+                )
+                
+                created_task_ids.append(task_id)
+                self.logger.info(f"Created scenario task {task_id}: {task_info['name']}")
+            
+            self.logger.info(f"Scenario processed: created {len(created_task_ids)} tasks")
+            return created_task_ids
+            
+        except Exception as e:
+            self.logger.error(f"Error processing scenario: {e}")
+            return []
+    
+    async def _analyze_scenario_breakdown(self, scenario_description: str) -> List[Dict[str, Any]]:
+        """
+        Analyze a scenario and break it down into constituent tasks.
+        
+        Args:
+            scenario_description: The scenario to break down
+            
+        Returns:
+            List of task information dictionaries
+        """
+        try:
+            # Use the planner for intelligent breakdown
+            analysis = await self.planner.analyze_task_requirements(
+                task_description=f"Break down this complex scenario into sequential tasks: {scenario_description}",
+                parameters={'mode': 'scenario_breakdown', 'scenario': scenario_description}
+            )
+            
+            if 'error' in analysis:
+                self.logger.error(f"Scenario analysis failed: {analysis['error']}")
+                return []
+            
+            # Extract complexity and create appropriate breakdown
+            complexity = analysis.get('complexity', 'medium')
+            
+            # Simple rule-based breakdown for now - can be enhanced with more AI
+            task_breakdown = []
+            
+            # Split scenario into logical steps
+            import re
+            
+            # Look for action words and break accordingly
+            action_patterns = [
+                (r'\b(navigate|move|go)\s+to\s+([^,\.]+)', 'movement'),
+                (r'\b(pick|grab|take)\s+([^,\.]+)', 'manipulation'),
+                (r'\b(bring|carry|transport)\s+([^,\.]+)', 'manipulation'),
+                (r'\b(place|put|drop)\s+([^,\.]+)', 'manipulation'),
+                (r'\b(scan|look|find|search)\s+([^,\.]+)', 'vision'),
+                (r'\b(detect|identify|recognize)\s+([^,\.]+)', 'vision')
+            ]
+            
+            # Split by common delimiters
+            steps = re.split(r'[,;]|\s+and\s+|\s+then\s+', scenario_description)
+            steps = [step.strip() for step in steps if step.strip()]
+            
+            if len(steps) < 2:
+                # Single action scenario
+                steps = [scenario_description]
+            
+            task_counter = 1
+            previous_task_id = None
+            
+            for step in steps:
+                if len(step) < 5:  # Skip very short fragments
+                    continue
+                
+                # Determine capability
+                capability = 'general'
+                for pattern, cap in action_patterns:
+                    if re.search(pattern, step, re.IGNORECASE):
+                        capability = cap
+                        break
+                
+                task_name = f"Step {task_counter}: {step[:50]}..."
+                
+                task_info = {
+                    'name': task_name,
+                    'description': step,
+                    'capability': capability,
+                    'parameters': {
+                        'scenario': scenario_description,
+                        'step_number': task_counter,
+                        'original_step': step
+                    },
+                    'priority': 5,
+                    'dependencies': [previous_task_id] if previous_task_id else []
+                }
+                
+                task_breakdown.append(task_info)
+                previous_task_id = task_name
+                task_counter += 1
+            
+            # If no breakdown was possible, create a single comprehensive task
+            if not task_breakdown:
+                task_breakdown.append({
+                    'name': f"Execute Scenario: {scenario_description[:50]}...",
+                    'description': scenario_description,
+                    'capability': 'general',
+                    'parameters': {'scenario': scenario_description},
+                    'priority': 5,
+                    'dependencies': []
+                })
+            
+            self.logger.info(f"Broke down scenario into {len(task_breakdown)} tasks")
+            return task_breakdown
+            
+        except Exception as e:
+            self.logger.error(f"Error analyzing scenario breakdown: {e}")
+            return []
+    
     async def get_system_status(self) -> SystemStatus:
         """
         Get current system status.

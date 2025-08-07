@@ -1,7 +1,7 @@
 #!/usr/bin/env /home/spark/.venv/bin/python
 """
 Main entry point for the Orchestrator Agent.
-Initializes and runs the orchestrator with all its components.
+Runs exclusively in interactive mode for scenario management.
 """
 
 import asyncio
@@ -22,44 +22,24 @@ from config import ConfigManager
 
 
 async def main():
-    """Main function to run the orchestrator."""
+    """Main function to run the orchestrator in interactive mode only."""
     try:
-        # Check for interactive mode flag
-        interactive_mode = "--interactive" in sys.argv or "-i" in sys.argv
-        
         # Initialize configuration
         config_manager = ConfigManager()
         
         # Create orchestrator
         orchestrator = Orchestrator(config_manager)
         
-        if interactive_mode:
-            print("\n" + "="*80)
-            print("🤖 ORCHESTRATOR AGENT - INTERACTIVE MODE")
-            print("="*80)
-            print("🚀 Starting orchestrator with terminal interface...")
-            
-            # Start orchestrator with terminal interface
-            await orchestrator.start_with_terminal_interface()
-        else:
-            # Start orchestrator normally
-            await orchestrator.start()
-            
-            print("\n" + "="*60)
-            print("🤖 ORCHESTRATOR AGENT STARTED SUCCESSFULLY! 🤖")
-            print("="*60)
-            print(f"📡 WebSocket Server: ws://{config_manager.config.websocket.host}:{config_manager.config.websocket.port}")
-            print(f"🧠 Ollama Model: {config_manager.config.ollama.model}")
-            print(f"🔗 Ollama URL: {config_manager.config.ollama.base_url}")
-            print("="*60)
-            print("💡 The orchestrator is ready to accept agent connections and tasks!")
-            print("📝 Check the logs/ directory for detailed operation logs.")
-            print("🛑 Press Ctrl+C to stop the orchestrator gracefully.")
-            print("💻 Run with --interactive flag for terminal interface.")
-            print("="*60 + "\n")
-            
-            # Wait for shutdown signal
-            await orchestrator.wait_for_shutdown()
+        print("\n" + "="*80)
+        print("🤖 ORCHESTRATOR AGENT - INTERACTIVE MODE")
+        print("="*80)
+        print("🚀 Starting orchestrator with terminal interface...")
+        print("💡 Orchestrator will maintain connections to all AI bot agents")
+        print("🎯 Ready to receive scenarios and break them into tasks")
+        print("="*80)
+        
+        # Start orchestrator with terminal interface (interactive mode only)
+        await orchestrator.start_with_terminal_interface()
         
     except KeyboardInterrupt:
         print("\n\n🛑 Shutdown requested by user...")
@@ -85,13 +65,11 @@ def run_orchestrator():
             print("\n🤖 ORCHESTRATOR AGENT")
             print("="*50)
             print("Usage:")
-            print("  python main.py                    - Run in daemon mode")
-            print("  python main.py --interactive      - Run with terminal interface")
-            print("  python main.py -i                 - Run with terminal interface (short)")
+            print("  python main.py                    - Run in interactive mode")
             print("  python main_interactive.py        - Direct interactive mode")
-            print("\nModes:")
-            print("  Daemon Mode:       Background operation, WebSocket API only")
-            print("  Interactive Mode:  Terminal interface for direct commands")
+            print("\nThe Orchestrator Agent now runs exclusively in interactive mode.")
+            print("It maintains connections to all AI bot agents and waits for")
+            print("scenarios from users to break down into tasks and assign to agents.")
             print("="*50)
             return
         
