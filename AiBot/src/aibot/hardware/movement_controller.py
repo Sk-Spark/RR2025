@@ -395,6 +395,10 @@ class MovementController:
             
             return await self._current_movement_task
             
+        except asyncio.CancelledError:
+            logger.info("Movement cancelled")
+            self.stop_all_motors()
+            return False
         except Exception as e:
             logger.error(f"Failed to turn right: {e}")
             self.stop_all_motors()
@@ -424,6 +428,10 @@ class MovementController:
             
             return await self._current_movement_task
             
+        except asyncio.CancelledError:
+            logger.info("Movement cancelled")
+            self.stop_all_motors()
+            return False
         except Exception as e:
             logger.error(f"Failed to strafe left: {e}")
             self.stop_all_motors()
@@ -453,6 +461,10 @@ class MovementController:
             
             return await self._current_movement_task
             
+        except asyncio.CancelledError:
+            logger.info("Movement cancelled")
+            self.stop_all_motors()
+            return False
         except Exception as e:
             logger.error(f"Failed to strafe right: {e}")
             self.stop_all_motors()

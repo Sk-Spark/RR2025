@@ -5,6 +5,7 @@ Contains configuration settings for the LED control application.
 """
 
 import os
+import sys
 from dataclasses import dataclass
 from typing import Optional
 
@@ -27,7 +28,7 @@ class AppConfig:
     base_url: str = "http://localhost:11434"
     
     # Orchestrator Configuration
-    orchestrator_url: Optional[str] = None  # Set to None by default for interactive mode
+    orchestrator_url: Optional[str] = None  # Set in config or by command-line mode
     agent_id: Optional[str] = "rpi5_agent"
     heartbeat_interval: int = 30
     max_reconnect_attempts: int = -1  # -1 for unlimited
@@ -53,25 +54,59 @@ class AppConfig:
     
     @classmethod
     def from_env(cls) -> "AppConfig":
-        """Create configuration from environment variables."""
+        """Create configuration from environment variables and config file."""
+        
+        # Try to load from config file first
+        config_values = cls._load_config_file()
         
         return cls(
-            led_pin=cls.led_pin if cls.led_pin is not None else int(os.getenv("LED_PIN", "18")),
-            enable_movement=cls.enable_movement if cls.enable_movement is not None else os.getenv("ENABLE_MOVEMENT", "true").lower() == "true",
-            pca9685_address=cls.pca9685_address if cls.pca9685_address is not None else int(os.getenv("PCA9685_ADDRESS", "0x40"), 0),
-            pca9685_frequency=cls.pca9685_frequency if cls.pca9685_frequency is not None else int(os.getenv("PCA9685_FREQUENCY", "50")),
-            model_name=cls.model_name if cls.model_name is not None else os.getenv("OLLAMA_MODEL", "llama3.2:1b"),
-            base_url=cls.base_url if cls.base_url is not None else os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-            orchestrator_url=cls.orchestrator_url if cls.orchestrator_url is not None else os.getenv("ORCHESTRATOR_URL"),
-            agent_id=cls.agent_id if cls.agent_id is not None else os.getenv("AGENT_ID"),
-            heartbeat_interval=cls.heartbeat_interval if cls.heartbeat_interval is not None else int(os.getenv("HEARTBEAT_INTERVAL", "30")),
-            max_reconnect_attempts=cls.max_reconnect_attempts if cls.max_reconnect_attempts is not None else int(os.getenv("MAX_RECONNECT_ATTEMPTS", "-1")),
-            reconnect_delay=cls.reconnect_delay if cls.reconnect_delay is not None else int(os.getenv("RECONNECT_DELAY", "5")),
-            log_level=cls.log_level if cls.log_level is not None else os.getenv("LOG_LEVEL", "INFO"),
-            log_format=cls.log_format if cls.log_format is not None else os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"),
-            max_retries=cls.max_retries if cls.max_retries is not None else int(os.getenv("MAX_RETRIES", "3")),
-            timeout_seconds=cls.timeout_seconds if cls.timeout_seconds is not None else int(os.getenv("TIMEOUT_SECONDS", "30")),
+            led_pin=int(os.getenv("LED_PIN", config_values.get("LED_PIN", "18"))),
+            enable_movement=os.getenv("ENABLE_MOVEMENT", str(config_values.get("ENABLE_MOVEMENT", "true"))).lower() == "true",
+            pca9685_address=int(os.getenv("PCA9685_ADDRESS", "0x40"), 0),
+            pca9685_frequency=int(os.getenv("PCA9685_FREQUENCY", "50")),
+            model_name=os.getenv("OLLAMA_MODEL", config_values.get("OLLAMA_MODEL", "llama3.2:1b")),
+            base_url=os.getenv("OLLAMA_BASE_URL", config_values.get("OLLAMA_BASE_URL", "http://localhost:11434")),
+            orchestrator_url=os.getenv("ORCHESTRATOR_URL", config_values.get("ORCHESTRATOR_URL")),
+            agent_id=os.getenv("AGENT_ID", config_values.get("AGENT_ID", "rpi5_agent")),
+            heartbeat_interval=int(os.getenv("HEARTBEAT_INTERVAL", "30")),
+            max_reconnect_attempts=int(os.getenv("MAX_RECONNECT_ATTEMPTS", "-1")),
+            reconnect_delay=int(os.getenv("RECONNECT_DELAY", "5")),
+            log_level=os.getenv("LOG_LEVEL", config_values.get("LOG_LEVEL", "INFO")),
         )
+    
+    @staticmethod
+    def _load_config_file() -> dict:
+        """Load configuration from config file."""
+        config_values = {}
+        
+        # Try to find config file
+        config_paths = [
+            "config/aibot_config.py",
+            "../config/aibot_config.py", 
+            "../../config/aibot_config.py"
+        ]
+        
+        for config_path in config_paths:
+            if os.path.exists(config_path):
+                try:
+                    # Add config directory to path
+                    config_dir = os.path.dirname(os.path.abspath(config_path))
+                    if config_dir not in sys.path:
+                        sys.path.insert(0, config_dir)
+                    
+                    # Import config module
+                    import aibot_config
+                    
+                    # Extract configuration values
+                    for attr in dir(aibot_config):
+                        if not attr.startswith('_'):
+                            config_values[attr] = getattr(aibot_config, attr)
+                    
+                    break
+                except Exception:
+                    continue
+        
+        return config_values
 
 
 class ConfigManager:
