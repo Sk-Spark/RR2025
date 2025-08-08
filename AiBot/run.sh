@@ -26,13 +26,13 @@ cd "$PROJECT_DIR" || {
 # Check if virtual environment exists
 if [ ! -d "env" ]; then
     echo -e "${RED}❌ Virtual environment not found. Please run setup first.${NC}"
-    echo -e "${YELLOW}Run: python3 -m venv env && source env/bin/activate && pip install -r requirements.txt${NC}"
+    echo -e "${YELLOW}Run: python3 -m venv env && source /home/spark/.venv/bin/activate && pip install -r requirements.txt${NC}"
     exit 1
 fi
 
 # Activate virtual environment
 echo -e "${YELLOW}📦 Activating virtual environment...${NC}"
-source env/bin/activate || {
+source /home/spark/.venv/bin/activate || {
     echo -e "${RED}❌ Failed to activate virtual environment${NC}"
     exit 1
 }

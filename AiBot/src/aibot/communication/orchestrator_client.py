@@ -14,7 +14,7 @@ from collections import deque
 import websockets
 from websockets.exceptions import ConnectionClosed, InvalidURI, ConnectionClosedError
 
-from message_protocol import (
+from .message_protocol import (
     MessageType, RegistrationMessage, CommandMessage, 
     ResponseMessage, StatusUpdateMessage, EventMessage
 )
