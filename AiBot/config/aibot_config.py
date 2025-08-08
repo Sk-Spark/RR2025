@@ -11,7 +11,6 @@ AGENT_ID = "rpi5_agent"                    # Change this to your desired agent I
 
 # Hardware Configuration  
 LED_PIN = 18                               # GPIO pin for LED control
-ENABLE_MOVEMENT = True                     # Enable/disable movement control
 
 # AI Configuration
 OLLAMA_MODEL = "llama3.2:1b"               # Ollama model to use

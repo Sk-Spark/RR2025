@@ -12,7 +12,7 @@ import os
 # Add src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from aibot import LEDControlApp, Config
+from aibot import BotControlApp, Config
 
 
 def parse_arguments():
@@ -23,16 +23,18 @@ def parse_arguments():
         epilog="""
 Examples:
   python main.py                              # Interactive mode (default)
-  python main.py --mode interactive           # Interactive mode explicitly  
-  python main.py --mode orchestrator          # Orchestrator mode (URL from config)
+  python main.py -m i                         # Interactive mode (short)
+  python main.py --mode interactive           # Interactive mode (explicit)
+  python main.py -m o                         # Orchestrator mode (short)
+  python main.py --mode orchestrator          # Orchestrator mode (explicit)
         """
     )
     
     parser.add_argument(
         '--mode', '-m',
-        choices=['interactive', 'orchestrator'],
+        choices=['interactive', 'orchestrator', 'i', 'o'],
         default='interactive',
-        help='Operation mode: interactive (terminal input) or orchestrator (WebSocket commands)'
+        help='Operation mode: interactive/i (terminal input) or orchestrator/o (WebSocket commands)'
     )
     
     parser.add_argument(
@@ -49,11 +51,21 @@ def create_config_from_args(args):
     config_manager = Config()
     config = config_manager.get_config()
     
+    # Normalize mode (handle short forms)
+    mode = args.mode
+    if mode == 'i':
+        mode = 'interactive'
+    elif mode == 'o':
+        mode = 'orchestrator'
+    
     # Set orchestrator configuration based on mode
-    if args.mode == 'orchestrator':
-        # If orchestrator URL is not set in config, use default
+    if mode == 'orchestrator':
+        # Check if orchestrator URL is configured
         if not config.orchestrator_url:
-            config.orchestrator_url = "ws://localhost:8080"
+            print("❌ Error: Orchestrator mode requires orchestrator_url to be configured")
+            print("   Please set ORCHESTRATOR_URL in config/aibot_config.py")
+            print("   Example: ORCHESTRATOR_URL = 'ws://localhost:8080'")
+            sys.exit(1)
         
         if args.agent_id:
             config.agent_id = args.agent_id
@@ -63,7 +75,7 @@ def create_config_from_args(args):
         config.orchestrator_url = None
         print("💻 Interactive mode")
     
-    return config_manager
+    return config_manager, mode
 
 
 async def main():
@@ -72,21 +84,21 @@ async def main():
     args = parse_arguments()
     
     # Create configuration from arguments
-    config_manager = create_config_from_args(args)
+    config_manager, mode = create_config_from_args(args)
     config = config_manager.get_config()
     
     # Print startup information
     print("🤖 AiBot - Intelligent Robot Control System")
     print("=" * 50)
-    print(f"Mode: {args.mode}")
-    if args.mode == 'orchestrator':
+    print(f"Mode: {mode}")
+    if mode == 'orchestrator':
         print(f"Orchestrator URL: {config.orchestrator_url}")
         if config.agent_id:
             print(f"Agent ID: {config.agent_id}")
     print("=" * 50)
     
     # Create and run application
-    app = LEDControlApp(config_manager)
+    app = BotControlApp(config_manager)
     await app.run()
 
 

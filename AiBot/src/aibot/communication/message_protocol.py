@@ -63,7 +63,7 @@ class RegistrationMessage(BaseMessage):
     
     @classmethod
     def create(cls, agent_id: str, capabilities: List[str], 
-               location: str = "", agent_type: str = "rpi_led_controller"):
+               location: str = "", agent_type: str = "rpi_bot_controller"):
         """Create registration message."""
         return cls(
             message_type=MessageType.REGISTER.value,
@@ -188,8 +188,8 @@ EXAMPLE_MESSAGES = {
         "timestamp": 1720872345.123,
         "message_id": "msg_001",
         "payload": {
-            "agent_type": "rpi_led_controller",
-            "capabilities": ["led_control", "status_monitoring", "natural_language_processing"],
+            "agent_type": "rpi_bot_controller",
+            "capabilities": ["led_control", "movement_control", "status_monitoring", "natural_language_processing"],
             "location": "bedroom",
             "hardware": "raspberry_pi_5",
             "version": "1.0.0"

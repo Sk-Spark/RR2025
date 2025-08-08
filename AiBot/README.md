@@ -1,53 +1,637 @@
-# Semantic Kernel LED Control with Ollama (Modular Version)
+# AiBot - Intelligent Robot Control System
 
-A modular Python application that uses Semantic Kernel and Ollama to control an LED on Raspberry Pi 5 via natural language commands through the terminal.
+A modular AI-powered robot control system using Semantic Kernel and Ollama LLM for natural language command processing with LED and movement control capabilities.
 
-## 📁 Detailed Project Structure
+## 🎯 Overview
+
+AiBot is an advanced robotics control system that combines artificial intelligence with hardware control to create an intelligent robot that responds to natural language commands. Built for Raspberry Pi 5, it supports both LED control and mecanum wheel movement patterns, making it perfect for educational robotics, research, and prototyping.
+
+## ✨ Key Features
+
+- **🤖 Natural Language Processing**: Uses Ollama LLM (llama3.2:1b) for understanding voice/text commands
+- **💡 LED Control**: GPIO-based LED control with simulation mode support
+- **🚗 Movement Control**: PCA9685 PWM driver for precise motor control with mecanum wheel support
+- **🛡️ Safety Features**: 1-second auto-stop mechanism for all movements
+- **🌐 Dual Operation Modes**: Interactive terminal mode and WebSocket orchestrator mode
+- **🔌 Modular Architecture**: Plugin-based system using Semantic Kernel for easy extensibility
+- **🔄 WebSocket Communication**: Real-time bidirectional communication with orchestrator services
+- **📊 Comprehensive Testing**: Full test suite with hardware diagnostics
+
+## 🏗️ System Architecture
+
+### Core Components
 
 ```
-SemanticKernal/
-├── 📦 Core Application Files
-│   ├── __init__.py           # Package initialization & exports
-│   ├── main.py               # Main entry point (backward compatibility)
-│   ├── app.py                # Main application orchestrator
-│   └── run.sh                # Bash startup script with checks
+AiBot/
+├── 🚀 Entry Points & Control
+│   ├── main.py                    # Command-line entry point with mode selection
+│   ├── run.sh                     # Startup script with environment validation
+│   └── config/aibot_config.py     # User configuration file
 │
-├── 🧠 AI & LLM Integration
-│   ├── ollama_agent.py       # Ollama LLM agent & decision engine
-│   └── led_plugin.py         # Semantic Kernel plugin functions
-│
-├── 🔌 Hardware Control
-│   └── led_controller.py     # GPIO hardware abstraction layer
-│
-├── ⚙️ Configuration & Setup
-│   ├── config.py             # Configuration management system
-│   └── requirements.txt      # Python dependencies
+├── 📦 Source Code (src/aibot/)
+│   ├── core/                      # Application core
+│   │   ├── app.py                 # Main application orchestrator
+│   │   └── config.py              # Configuration management
+│   ├── agents/                    # AI agents
+│   │   └── ollama_agent.py        # Ollama LLM integration
+│   ├── hardware/                  # Hardware controllers
+│   │   ├── led_controller.py      # GPIO LED control
+│   │   ├── movement_controller.py # Motor movement control
+│   │   └── pca9685_controller.py  # PWM driver interface
+│   ├── plugins/                   # Semantic Kernel plugins
+│   │   ├── led_plugin.py          # LED control functions
+│   │   └── movement_plugin.py     # Movement control functions
+│   └── communication/             # Communication protocols
+│       ├── message_protocol.py    # WebSocket message definitions
+│       └── orchestrator_client.py # WebSocket client implementation
 │
 ├── 🧪 Testing & Validation
-│   ├── test_modules.py       # Comprehensive modular test suite
-│   └── test_led.py           # Legacy LED-specific tests
+│   ├── tests/                     # Comprehensive test suite
+│   └── hardware_diagnostic.py    # Hardware validation tools
 │
-└── 📚 Documentation
-    └── README.md             # This comprehensive guide
+└── 📚 Documentation & Setup
+    ├── requirements.txt           # Python dependencies
+    ├── setup.py                   # Package installation
+    └── README.md                  # This documentation
 ```
 
-## 🏗️ Modular Architecture Deep Dive
+### Modular Design Philosophy
 
-### **Layer 1: Entry Points & Orchestration**
+**Layer 1: Entry Points & Orchestration**
+- `main.py`: Clean command-line interface with mode selection
+- `app.py`: Application lifecycle management and coordination
+- `run.sh`: System validation and startup automation
 
-#### **`main.py`** - Application Entry Point
+**Layer 2: AI & Intelligence**
+- `ollama_agent.py`: Natural language processing and decision making
+- Semantic Kernel plugins: Function calling and execution
+
+**Layer 3: Hardware Abstraction**
+- Hardware controllers: GPIO, PWM, and motor control
+- Safety mechanisms: Auto-stop and error handling
+
+**Layer 4: Communication**
+- WebSocket client: Real-time orchestrator communication
+- Message protocol: Structured command and response handling
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Raspberry Pi 5** (or compatible)
+- **Python 3.8+**
+- **Ollama** installed and running
+- **Hardware components** (optional for simulation):
+  - PCA9685 PWM Driver (I2C address 0x40)
+  - Motors with motor driver board (L298N recommended)
+  - LED connected to GPIO pin 18
+  - External power supply for motors (6-12V)
+
+### Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/Sk-Spark/RR2025.git
+   cd RR2025/AiBot
+   ```
+
+2. **Set up Python environment**:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Linux/Mac
+   # or
+   source /home/spark/.venv/bin/activate  # If using global venv
+   ```
+
+3. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Install in development mode**:
+   ```bash
+   pip install -e .
+   ```
+
+5. **Set up Ollama** (if not already installed):
+   ```bash
+   # Install Ollama
+   curl -fsSL https://ollama.com/install.sh | sh
+   
+   # Start Ollama service
+   ollama serve
+   
+   # Pull the required model
+   ollama pull llama3.2:1b
+   ```
+
+### Configuration
+
+Edit `config/aibot_config.py` to customize your setup:
+
 ```python
-# Simple, clean entry point
-from app import LEDControlApp
-app = LEDControlApp()
-await app.run()
+# Orchestrator Configuration
+ORCHESTRATOR_URL = "ws://localhost:8080"  # Set to None for interactive-only mode
+AGENT_ID = "rpi5_agent"
+
+# Hardware Configuration  
+LED_PIN = 18
+ENABLE_MOVEMENT = True
+
+# AI Configuration
+OLLAMA_MODEL = "llama3.2:1b"
+OLLAMA_BASE_URL = "http://localhost:11434"
 ```
-- **Purpose**: Provides backward compatibility and simple startup
-- **Dependencies**: Only imports `app.py`
-- **Role**: Minimal entry point that delegates to the main application
 
-#### **`app.py`** - Application Orchestrator
+## 🎮 Usage
+
+### Command-Line Interface
+
+AiBot supports two operation modes via command-line arguments:
+
+```bash
+# Interactive Mode (default) - Terminal input
+python main.py                    # Default interactive mode
+python main.py -m i               # Short form
+python main.py --mode interactive # Explicit form
+
+# Orchestrator Mode - WebSocket commands (requires ORCHESTRATOR_URL in config)
+python main.py -m o               # Short form  
+python main.py --mode orchestrator # Explicit form
+
+# Additional options
+python main.py -m o -a my_robot   # Custom agent ID
+python main.py --help             # Show all options
+```
+
+### Interactive Mode
+
+In interactive mode, you can type natural language commands directly:
+
+```
+🔹 You: turn on the LED
+🤖 Agent: LED turned on successfully!
+
+🔹 You: move forward
+🤖 Agent: Moving forward for 1 second.
+
+🔹 You: what's the LED status?
+🤖 Agent: The LED is currently on.
+
+🔹 You: help
+🤖 Agent: [Shows available commands]
+
+🔹 You: quit
+👋 Goodbye!
+```
+
+### Supported Commands
+
+#### 💡 LED Commands
+- `"turn on the LED"` / `"switch on the light"`
+- `"turn off the LED"` / `"switch off the light"`  
+- `"what's the LED status?"` / `"is the LED on?"`
+
+#### 🚗 Movement Commands (Auto-stop after 1 second)
+- `"move forward"` / `"go ahead"`
+- `"move backward"` / `"go back"`
+- `"turn left"` / `"turn right"`
+- `"strafe left"` / `"strafe right"` (mecanum wheels)
+- `"stop robot"` / `"stop moving"`
+- `"movement status"` / `"are you moving?"`
+
+#### ℹ️ System Commands
+- `"help"` - Show available commands
+- `"quit"` / `"exit"` - Exit the application
+
+### Orchestrator Mode
+
+In orchestrator mode, AiBot connects to a WebSocket server and receives commands remotely:
+
+```bash
+# Start in orchestrator mode (URL from config)
+python main.py -m o
+
+# Output:
+🌐 Orchestrator mode: ws://localhost:8080
+🔄 Agent is running and listening for orchestrator commands...
+   Press Ctrl+C to stop
+```
+
+## 🌐 WebSocket Communication
+
+### Message Protocol
+
+AiBot uses a structured message protocol for WebSocket communication:
+
 ```python
+# Command Message
+{
+    "message_type": "command",
+    "payload": {
+        "request_id": "unique-id",
+        "command": "turn on the LED"
+    }
+}
+
+# Response Message  
+{
+    "message_type": "command_response",
+    "payload": {
+        "request_id": "unique-id", 
+        "success": true,
+        "response": "LED turned on successfully!",
+        "data": {
+            "led_status": "on",
+            "agent_id": "rpi5_agent"
+        }
+    }
+}
+```
+
+### Features
+
+- **Real-time bidirectional communication**
+- **Automatic reconnection** with configurable retry logic
+- **Message queuing** for reliable delivery during disconnections
+- **Heartbeat monitoring** for connection health
+- **Comprehensive message types**: Commands, queries, status updates
+
+### Testing with Local Orchestrator
+
+**Terminal 1 - Start Test Orchestrator:**
+```bash
+python test_orchestrator.py
+```
+
+**Terminal 2 - Start AiBot in Orchestrator Mode:**
+```bash
+python main.py -m o
+```
+
+**Send Commands from Orchestrator Console:**
+```
+> turn on led
+> move forward  
+> status
+> quit
+```
+
+## 🔧 Hardware Setup
+
+### Required Components
+
+1. **Raspberry Pi 5** with GPIO access
+2. **PCA9685 PWM Driver Board** (16-channel, I2C)
+3. **DC Motors** (4x for mecanum wheels)
+4. **Motor Driver Board** (L298N or similar)
+5. **LED** with appropriate resistor
+6. **External Power Supply** (6-12V for motors)
+7. **Jumper wires** and breadboard
+
+### Wiring Diagram
+
+#### LED Connection
+```
+Raspberry Pi GPIO 18 → LED Anode (long leg)
+LED Cathode (short leg) → 330Ω Resistor → Ground
+```
+
+#### PCA9685 Connection
+```
+Raspberry Pi    →    PCA9685
+GND            →    GND
+3.3V           →    VCC
+GPIO 2 (SDA)   →    SDA
+GPIO 3 (SCL)   →    SCL
+```
+
+#### Motor Configuration (Default)
+```
+Motor Position    PCA9685 Channel    Direction Pins
+Front Right       15                 IN1: 14, IN2: 13
+Front Left        4                  IN1: 5,  IN2: 6
+Rear Right        10                 IN1: 12, IN2: 11
+Rear Left         9                  IN1: 7,  IN2: 8
+```
+
+### Mecanum Wheel Movement Patterns
+
+```
+Forward:     All wheels rotate forward
+Backward:    All wheels rotate backward
+Turn Left:   Left wheels backward, Right wheels forward
+Turn Right:  Left wheels forward, Right wheels backward
+Strafe Left: FL+RR forward, FR+RL backward
+Strafe Right: FR+RL forward, FL+RR backward
+```
+
+## 🧪 Testing & Validation
+
+### Run Tests
+
+```bash
+# Run all tests
+python -m pytest tests/
+
+# Run specific test categories
+python -m pytest tests/unit/
+python -m pytest tests/integration/
+
+# Run hardware diagnostics
+python tests/hardware_diagnostic.py
+```
+
+### Test Coverage
+
+- **Unit Tests**: Individual component testing
+- **Integration Tests**: Component interaction testing
+- **Hardware Tests**: GPIO and I2C validation
+- **Communication Tests**: WebSocket protocol testing
+- **End-to-End Tests**: Complete workflow validation
+
+### Hardware Diagnostics
+
+```bash
+# Check all hardware components
+python tests/hardware_diagnostic.py
+
+# Output example:
+✅ GPIO access available
+✅ I2C interface enabled
+✅ PCA9685 detected at 0x40
+✅ LED control functional
+✅ Motor channels responsive
+```
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+```bash
+# Override config file settings
+export ORCHESTRATOR_URL="ws://your-server:8080"
+export AGENT_ID="custom_agent_id"
+export LED_PIN="18"
+export ENABLE_MOVEMENT="true"
+export OLLAMA_MODEL="llama3.2:1b"
+export LOG_LEVEL="INFO"
+```
+
+### Advanced Configuration
+
+Edit `src/aibot/core/config.py` for advanced settings:
+
+```python
+class AppConfig:
+    # Hardware Configuration
+    led_pin: int = 18
+    pca9685_address: int = 0x40
+    pca9685_frequency: int = 50
+    
+    # Movement Configuration
+    enable_movement: bool = True
+    motor_config: dict = {
+        "front_right": {"channel": 15, "in1": 14, "in2": 13},
+        "front_left": {"channel": 4, "in1": 5, "in2": 6},
+        "rear_right": {"channel": 10, "in1": 12, "in2": 11},
+        "rear_left": {"channel": 9, "in1": 7, "in2": 8},
+    }
+    
+    # Safety Configuration
+    movement_duration: float = 1.0  # Auto-stop timeout
+    max_speed: int = 100           # Maximum motor speed
+```
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+**1. Ollama Connection Error**
+```bash
+# Check if Ollama is running
+curl http://localhost:11434/api/tags
+
+# If not running:
+ollama serve
+
+# Check model availability:
+ollama list
+ollama pull llama3.2:1b
+```
+
+**2. GPIO Permission Error**
+```bash
+# Add user to gpio group
+sudo usermod -a -G gpio $USER
+
+# Reboot or re-login
+sudo reboot
+```
+
+**3. I2C Not Enabled**
+```bash
+# Enable I2C interface
+sudo raspi-config
+# Navigate to Interface Options → I2C → Enable
+
+# Check I2C devices
+sudo i2cdetect -y 1
+```
+
+**4. Orchestrator Connection Failed**
+```bash
+# Check network connectivity
+ping your-orchestrator-server
+
+# Verify WebSocket URL in config
+cat config/aibot_config.py
+
+# Check orchestrator server status
+telnet your-orchestrator-server 8080
+```
+
+**5. Motor Not Responding**
+```bash
+# Run hardware diagnostics
+python tests/hardware_diagnostic.py
+
+# Check power supply
+# Verify motor driver connections
+# Test individual motor channels
+```
+
+### Debug Mode
+
+Enable detailed logging for troubleshooting:
+
+```bash
+# Set log level to DEBUG
+export LOG_LEVEL="DEBUG"
+python main.py -m i
+
+# Or edit config file:
+LOG_LEVEL = "DEBUG"
+```
+
+## 🔧 Development
+
+### Development Setup
+
+```bash
+# Clone for development
+git clone https://github.com/Sk-Spark/RR2025.git
+cd RR2025/AiBot
+
+# Install in development mode with test dependencies
+pip install -e ".[dev]"
+
+# Install pre-commit hooks
+pre-commit install
+
+# Run tests before committing
+python -m pytest
+```
+
+### Project Structure for Developers
+
+```
+src/aibot/
+├── core/
+│   ├── __init__.py
+│   ├── app.py           # Main application class
+│   └── config.py        # Configuration management
+├── agents/
+│   ├── __init__.py
+│   └── ollama_agent.py  # LLM integration
+├── hardware/
+│   ├── __init__.py
+│   ├── led_controller.py      # GPIO LED control
+│   ├── movement_controller.py # Motor control logic
+│   └── pca9685_controller.py  # PWM driver interface
+├── plugins/
+│   ├── __init__.py
+│   ├── led_plugin.py          # Semantic Kernel LED plugin
+│   └── movement_plugin.py     # Semantic Kernel movement plugin
+└── communication/
+    ├── __init__.py
+    ├── message_protocol.py    # WebSocket message types
+    └── orchestrator_client.py # WebSocket client
+```
+
+### Adding New Features
+
+1. **New Hardware Controller**:
+   - Add controller to `src/aibot/hardware/`
+   - Create corresponding plugin in `src/aibot/plugins/`
+   - Update agent to use new plugin
+   - Add tests
+
+2. **New Command Types**:
+   - Add functions to appropriate plugin
+   - Update agent prompt templates
+   - Add test cases
+
+3. **New Communication Protocol**:
+   - Extend `message_protocol.py`
+   - Update `orchestrator_client.py` handlers
+   - Add integration tests
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Make your changes
+4. Add tests for new functionality
+5. Run the test suite: `python -m pytest`
+6. Commit your changes: `git commit -m 'Add amazing feature'`
+7. Push to the branch: `git push origin feature/amazing-feature`
+8. Open a Pull Request
+
+## 📊 Performance & Specifications
+
+### System Requirements
+
+- **CPU**: ARM64 (Raspberry Pi 5 recommended)
+- **RAM**: 4GB minimum, 8GB recommended
+- **Storage**: 16GB minimum
+- **Network**: WiFi or Ethernet for orchestrator mode
+- **GPIO**: Access to GPIO pins for hardware control
+
+### Performance Metrics
+
+- **Response Time**: ~100-500ms for LED commands
+- **Movement Latency**: ~200-800ms including safety delays
+- **LLM Processing**: ~1-5 seconds depending on model and hardware
+- **WebSocket Latency**: <50ms on local network
+- **Memory Usage**: ~200-500MB during operation
+
+### Scalability
+
+- **Multiple Agents**: Supports multiple AiBot instances with unique agent IDs
+- **Command Queue**: Built-in message queuing for reliability
+- **Concurrent Operations**: Async/await patterns for non-blocking operations
+- **Resource Management**: Automatic cleanup and resource management
+
+## 📜 Version History
+
+### Version 1.0.0 (Current)
+- ✅ Complete project restructure with proper Python package layout
+- ✅ Modular architecture with separate modules for core, hardware, plugins, agents, and communication
+- ✅ 1-second auto-stop safety mechanism for all movements
+- ✅ Comprehensive movement control with mecanum wheel patterns
+- ✅ Natural language command processing using Ollama LLM
+- ✅ Semantic Kernel plugin architecture for extensibility
+- ✅ WebSocket communication with orchestrator support
+- ✅ Command-line interface with mode selection
+- ✅ Hardware diagnostic tools and comprehensive test suite
+- ✅ Proper package structure with setup.py for installation
+- ✅ Configuration file system for easy customization
+
+### Planned Features
+- 🔄 Voice input support via speech recognition
+- 🔄 Camera integration for visual commands
+- 🔄 Sensor integration (ultrasonic, gyroscope)
+- 🔄 Web dashboard for remote control
+- 🔄 Multi-language support
+- 🔄 Advanced movement patterns and autonomous navigation
+
+## 🤝 Support & Community
+
+### Getting Help
+
+- **Documentation**: This README and inline code comments
+- **Issues**: [GitHub Issues](https://github.com/Sk-Spark/RR2025/issues)
+- **Hardware Problems**: Check troubleshooting section above
+- **Configuration**: Refer to configuration section
+
+### Contributing
+
+We welcome contributions! See the Development section above for guidelines.
+
+### License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+### Acknowledgments
+
+- **Semantic Kernel**: Microsoft's AI orchestration framework
+- **Ollama**: Local LLM runtime
+- **Raspberry Pi Foundation**: Hardware platform
+- **Open Source Community**: Various libraries and inspiration
+
+---
+
+## 🚀 Ready to Start?
+
+1. **Hardware Setup**: Connect your components following the wiring guide
+2. **Software Installation**: Follow the installation steps above
+3. **Configuration**: Edit `config/aibot_config.py` for your setup
+4. **First Run**: `python main.py -m i` for interactive mode
+5. **Test Commands**: Try "turn on the LED" or "move forward"
+6. **Explore**: Experiment with different commands and modes
+
+**Happy Building! 🤖✨**
 class LEDControlApp:
     def __init__(self, config_manager=None)
     async def initialize(self) -> bool

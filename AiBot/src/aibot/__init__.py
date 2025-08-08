@@ -21,7 +21,7 @@ Author: Spark
 __version__ = "1.0.0"
 __author__ = "Spark"
 
-from .core.app import LEDControlApp
+from .core.app import BotControlApp
 from .core.config import ConfigManager as Config
 
-__all__ = ["LEDControlApp", "Config"]
+__all__ = ["BotControlApp", "Config"]

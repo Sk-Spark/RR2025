@@ -5,15 +5,15 @@ Simple test script to diagnose the issue.
 
 import asyncio
 import sys
-sys.path.append('/home/spark/RR2025/AiBot')
+sys.path.append('/home/spark/RR2025/AiBot/src')
 
 async def test_app():
     try:
         print("Testing app initialization...")
-        from app import LEDControlApp
+        from aibot.core.app import BotControlApp
         print("App imported successfully")
         
-        app = LEDControlApp()
+        app = BotControlApp()
         print("App instance created")
         
         # Try to initialize

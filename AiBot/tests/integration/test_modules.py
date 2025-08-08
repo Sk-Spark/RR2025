@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from led_controller import LEDController
 from led_plugin import LEDControlPlugin
 from config import AppConfig, ConfigManager
-from app import LEDControlApp
+from aibot.core.app import BotControlApp
 
 # Set up logging for tests
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -141,7 +141,7 @@ async def test_led_control_app():
         config_manager = ConfigManager(config)
         
         # Initialize the application
-        app = LEDControlApp(config_manager)
+        app = BotControlApp(config_manager)
         
         # Test initialization
         print("Testing app initialization...")

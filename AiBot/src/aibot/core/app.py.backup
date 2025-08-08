@@ -2,10 +2,18 @@
 """
 LED Control Application
 Main application entry point for the Semantic Kernel LED Control with Ollama.
-Enhanced with orchestrator communication.
-"""
-
-import asyncio
+Enhanced with orchestrator communic        
+        help_text += """
+        🚗 Movement Commands (1 second duration each):
+        • "move forward" or "go ahead" - Move forward
+        • "move backward" or "go back" - Move backward  
+        • "turn left" - Turn left
+        • "turn right" - Turn right
+        • "strafe left" - Move sideways left (mecanum wheels)
+        • "strafe right" - Move sideways right (mecanum wheels)
+        • "stop robot" or "stop moving" - Stop all movement
+        • "movement status" or "are you moving?" - Check movement status
+        """mport asyncio
 import logging
 import sys
 import uuid

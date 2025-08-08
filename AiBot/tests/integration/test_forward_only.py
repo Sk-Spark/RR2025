@@ -10,9 +10,9 @@ sys.path.append('/home/spark/RR2025/AiBot')
 async def test_move_forward():
     try:
         print("Testing move forward command...")
-        from app import LEDControlApp
+        from aibot.core.app import BotControlApp
         
-        app = LEDControlApp()
+        app = BotControlApp()
         
         # Initialize
         if await app.initialize():

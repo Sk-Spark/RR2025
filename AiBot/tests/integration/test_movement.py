@@ -10,9 +10,9 @@ sys.path.append('/home/spark/RR2025/AiBot')
 async def test_movement():
     try:
         print("Testing movement command...")
-        from app import LEDControlApp
+        from aibot.core.app import BotControlApp
         
-        app = LEDControlApp()
+        app = BotControlApp()
         
         # Initialize
         if await app.initialize():

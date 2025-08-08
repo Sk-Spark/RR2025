@@ -18,7 +18,6 @@ class AppConfig:
     led_pin: int = 18
     
     # Movement Configuration
-    enable_movement: bool = True
     pca9685_address: int = 0x40
     pca9685_frequency: int = 50
     motor_config: dict = None  # Will be set in __post_init__
@@ -61,7 +60,6 @@ class AppConfig:
         
         return cls(
             led_pin=int(os.getenv("LED_PIN", config_values.get("LED_PIN", "18"))),
-            enable_movement=os.getenv("ENABLE_MOVEMENT", str(config_values.get("ENABLE_MOVEMENT", "true"))).lower() == "true",
             pca9685_address=int(os.getenv("PCA9685_ADDRESS", "0x40"), 0),
             pca9685_frequency=int(os.getenv("PCA9685_FREQUENCY", "50")),
             model_name=os.getenv("OLLAMA_MODEL", config_values.get("OLLAMA_MODEL", "llama3.2:1b")),

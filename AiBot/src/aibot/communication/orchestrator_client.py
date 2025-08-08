@@ -113,9 +113,9 @@ class OrchestratorClient:
         try:
             registration = RegistrationMessage.create(
                 agent_id=self.agent_id,
-                capabilities=["led_control", "status_monitoring", "natural_language_processing"],
+                capabilities=["led_control", "movement_control", "status_monitoring", "natural_language_processing"],
                 location="raspberry_pi",
-                agent_type="rpi_led_controller"
+                agent_type="rpi_bot_controller"
             )
             await self._send_raw_message(registration.to_dict())
             logger.info("Registration message sent to orchestrator")
