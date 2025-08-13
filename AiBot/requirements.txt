@@ -4,3 +4,8 @@ gpiozero>=1.6.2
 ollama>=0.1.0
 aiohttp>=3.8.0
 websockets>=11.0.0
+
+# Hardware control dependencies for Raspberry Pi 5
+adafruit-circuitpython-pca9685>=3.4.0
+adafruit-blinka>=8.0.0
+board>=1.0

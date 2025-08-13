@@ -10,7 +10,7 @@ from typing import Optional
 try:
     from gpiozero import LED
 except ImportError:
-    print("Warning: gpiozero not available. LED control will be simulated.")
+    print("Error: gpiozero not available. Please install gpiozero for LED control.")
     LED = None
 
 logger = logging.getLogger(__name__)
@@ -23,27 +23,27 @@ class LEDController:
         """Initialize LED controller with specified GPIO pin."""
         self.pin = pin
         self.led: Optional[LED] = None
-        self.is_simulated = LED is None
         
         try:
-            if not self.is_simulated:
+            if LED is not None:
                 self.led = LED(pin)
                 logger.info(f"LED controller initialized on GPIO pin {pin}")
             else:
-                logger.warning("Running in simulation mode - no actual GPIO control")
+                logger.error("gpiozero not available - LED control requires hardware access")
         except Exception as e:
             logger.error(f"Failed to initialize LED on pin {pin}: {e}")
-            self.is_simulated = True
+            self.led = None
     
     def turn_on(self) -> bool:
         """Turn on the LED."""
         try:
-            if not self.is_simulated and self.led:
+            if self.led:
                 self.led.on()
                 logger.info("LED turned ON")
+                return True
             else:
-                logger.info("LED turned ON (simulated)")
-            return True
+                logger.error("LED hardware not available")
+                return False
         except Exception as e:
             logger.error(f"Failed to turn on LED: {e}")
             return False
@@ -51,12 +51,13 @@ class LEDController:
     def turn_off(self) -> bool:
         """Turn off the LED."""
         try:
-            if not self.is_simulated and self.led:
+            if self.led:
                 self.led.off()
                 logger.info("LED turned OFF")
+                return True
             else:
-                logger.info("LED turned OFF (simulated)")
-            return True
+                logger.error("LED hardware not available")
+                return False
         except Exception as e:
             logger.error(f"Failed to turn off LED: {e}")
             return False
@@ -64,11 +65,12 @@ class LEDController:
     def get_status(self) -> str:
         """Get current LED status."""
         try:
-            if not self.is_simulated and self.led:
+            if self.led:
                 status = "ON" if self.led.is_lit else "OFF"
+                return status
             else:
-                status = "UNKNOWN (simulated)"
-            return status
+                logger.error("LED hardware not available")
+                return "HARDWARE_ERROR"
         except Exception as e:
             logger.error(f"Failed to get LED status: {e}")
             return "ERROR"
@@ -76,7 +78,7 @@ class LEDController:
     def cleanup(self):
         """Clean up GPIO resources."""
         try:
-            if not self.is_simulated and self.led:
+            if self.led:
                 self.led.close()
                 logger.info("LED GPIO resources cleaned up")
         except Exception as e:

@@ -74,6 +74,44 @@ AiBot/
 - WebSocket client: Real-time orchestrator communication
 - Message protocol: Structured command and response handling
 
+### Multi-Function Command Execution
+
+AiBot supports sequential execution of multiple commands to complete complex tasks:
+
+**How it Works:**
+1. **User Input**: `"make a square"` or `"move forward then turn right"`
+2. **LLM Processing**: Ollama agent analyzes the request and generates multiple function calls
+3. **Function Parsing**: System parses both semicolon-separated and newline-separated function calls
+4. **Sequential Execution**: Each function executes one after another with safety delays
+5. **Status Reporting**: Detailed feedback for each step in the sequence
+
+**Example Flow:**
+```
+User: "make a square"
+LLM Response: 
+CALL_FUNCTION:move_forward
+CALL_FUNCTION:turn_right
+CALL_FUNCTION:move_forward
+CALL_FUNCTION:turn_right
+CALL_FUNCTION:move_forward
+CALL_FUNCTION:turn_right
+CALL_FUNCTION:move_forward
+CALL_FUNCTION:turn_right
+
+Execution:
+Step 1: Movement executed: Robot moved forward at 50% speed for 1 second
+Step 2: Movement executed: Robot turned right at 50% speed for 1 second  
+Step 3: Movement executed: Robot moved forward at 50% speed for 1 second
+Step 4: Movement executed: Robot turned right at 50% speed for 1 second
+...
+```
+
+**Safety Features:**
+- 0.2-second delay between function calls
+- Individual error handling (one failure doesn't stop the sequence)
+- Auto-stop mechanism for each movement command
+- Detailed logging and user feedback
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -190,6 +228,7 @@ In interactive mode, you can type natural language commands directly:
 #### 💡 LED Commands
 - `"turn on the LED"` / `"switch on the light"`
 - `"turn off the LED"` / `"switch off the light"`  
+- `"blink LED"` / `"blink the light"` - Automatically generates on/off sequence
 - `"what's the LED status?"` / `"is the LED on?"`
 
 #### 🚗 Movement Commands (Auto-stop after 1 second)
@@ -203,6 +242,21 @@ In interactive mode, you can type natural language commands directly:
 #### ℹ️ System Commands
 - `"help"` - Show available commands
 - `"quit"` / `"exit"` - Exit the application
+
+#### 🔄 Sequential Multi-Command Execution
+AiBot can now execute multiple commands in sequence to complete complex tasks:
+- `"make a square"` - Executes a sequence of forward and right turn movements
+- `"move forward then turn right"` - Executes movement commands sequentially  
+- `"blink LED"` - Executes turn_led_on, turn_led_off, turn_led_on, turn_led_off sequence
+- `"turn on LED and move backward"` - Executes both LED and movement commands
+- `"patrol mode"` - Executes multiple movement patterns in sequence
+
+**Features:**
+- **Sequential Execution**: Commands are executed one after another with safety delays
+- **Error Handling**: If one command fails, execution continues with the next
+- **Auto-Stop Safety**: Movement commands still auto-stop after 1 second each
+- **Detailed Feedback**: Each step reports its execution status
+- **Composable Actions**: Complex behaviors built from existing basic functions
 
 ### Orchestrator Mode
 

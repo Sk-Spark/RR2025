@@ -32,10 +32,9 @@ class PCA9685Controller:
         self.i2c_address = i2c_address
         self.frequency = frequency
         self.pca = None
-        self.is_simulated = not PCA9685_AVAILABLE
         
         try:
-            if not self.is_simulated:
+            if PCA9685_AVAILABLE:
                 logger.info(f"Initializing PCA9685 at I2C address {hex(i2c_address)}...")
                 
                 # Initialize I2C bus directly
@@ -47,12 +46,12 @@ class PCA9685Controller:
                 
                 logger.info(f"PCA9685 initialized successfully at {frequency}Hz")
             else:
-                logger.warning("Running in simulation mode - no actual PCA9685 control")
+                logger.error("PCA9685 hardware not available")
             
         except Exception as e:
             logger.error(f"Failed to initialize PCA9685: {e}")
             logger.warning("Falling back to simulation mode")
-            self.is_simulated = True
+            self.pca = None
     
     def set_pwm(self, channel, duty_cycle):
         """
@@ -63,11 +62,11 @@ class PCA9685Controller:
             duty_cycle (int): Duty cycle (0-65535)
         """
         try:
-            if not self.is_simulated and self.pca:
+            if self.pca:
                 self.pca.channels[channel].duty_cycle = duty_cycle
                 logger.debug(f"Channel {channel}: duty_cycle={duty_cycle}")
             else:
-                logger.info(f"PCA9685 Channel {channel}: duty_cycle={duty_cycle} (simulated)")
+                logger.error(f"PCA9685 hardware not available for channel {channel}")
         except Exception as e:
             logger.error(f"Error setting PWM on channel {channel}: {e}")
             raise
@@ -83,10 +82,10 @@ class PCA9685Controller:
             int: Current duty cycle (0-65535)
         """
         try:
-            if not self.is_simulated and self.pca:
+            if self.pca:
                 return self.pca.channels[channel].duty_cycle
             else:
-                logger.debug(f"Get PWM Channel {channel} (simulated)")
+                logger.error(f"PCA9685 hardware not available for channel {channel}")
                 return 0
         except Exception as e:
             logger.error(f"Error getting PWM on channel {channel}: {e}")
@@ -95,7 +94,7 @@ class PCA9685Controller:
     def cleanup(self):
         """Clean up PCA9685 resources"""
         try:
-            if not self.is_simulated and self.pca:
+            if self.pca:
                 # Set all channels to 0
                 for channel in range(16):
                     self.pca.channels[channel].duty_cycle = 0
