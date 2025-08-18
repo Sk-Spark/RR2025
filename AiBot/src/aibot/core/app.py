@@ -57,7 +57,7 @@ class BotControlApp:
             )
             
             # Initialize the agent
-            if not await self.agent.initialize(led_pin=config.led_pin, motor_config=config.motor_config):
+            if not await self.agent.initialize(motor_config=config.motor_config):
                 self.logger.error("Failed to initialize agent")
                 return False
             
@@ -100,10 +100,6 @@ class BotControlApp:
         else:
             print("💻 Interactive Mode")
             print("Commands you can try:")
-            print("💡 LED Commands:")
-            print("- 'turn on the LED' or 'switch on the light'")
-            print("- 'turn off the LED' or 'switch off the light'")
-            print("- 'what's the LED status?' or 'is the LED on?'")
             
             print("🚗 Movement Commands:")
             print("- 'move forward' or 'go ahead'")

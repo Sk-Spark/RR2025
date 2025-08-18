@@ -22,16 +22,26 @@ class LEDController:
     def __init__(self, pin: int = 18):
         """Initialize LED controller with specified GPIO pin."""
         self.pin = pin
-        self.led: Optional[LED] = None
+        self.led = None
         
         try:
             if LED is not None:
+                # Try to cleanup any existing GPIO usage first
+                try:
+                    import gpiozero
+                    if hasattr(gpiozero.Device, 'pin_factory') and gpiozero.Device.pin_factory:
+                        gpiozero.Device.pin_factory.reset()
+                except:
+                    pass
+                
                 self.led = LED(pin)
                 logger.info(f"LED controller initialized on GPIO pin {pin}")
             else:
                 logger.error("gpiozero not available - LED control requires hardware access")
         except Exception as e:
             logger.error(f"Failed to initialize LED on pin {pin}: {e}")
+            if "GPIO busy" in str(e) or "Device or resource busy" in str(e):
+                logger.info("Tip: GPIO pin is busy. Try running 'sudo pkill -f python' or reboot to free GPIO resources")
             self.led = None
     
     def turn_on(self) -> bool:
