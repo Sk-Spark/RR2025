@@ -59,7 +59,6 @@ class OllamaBotAgent:
                 name="RobotControlAgent",
                 plugins=[self.movement_plugin],
                 instructions="""You are a robot control assistant with access to movement control functions.
-
 Available Movement Functions:
 - move_forward: Move robot forward (speed: 0-100%, duration: 0.1-10.0 seconds, defaults: 50%, 1.0s)
 - move_backward: Move robot backward (speed: 0-100%, duration: 0.1-10.0 seconds, defaults: 50%, 1.0s)
@@ -69,20 +68,9 @@ Available Movement Functions:
 - get_movement_status: Get current movement status
 
 CRITICAL EXECUTION RULES:
-1. EXECUTE ONLY ONE MOVEMENT AT A TIME - Each function call includes automatic timing and stopping.
-2. For complex patterns think through the sequence step by step.
-3. Call ONE function, let it complete (it will auto-stop), then proceed to the next step.
-4. Always use the provided functions rather than describing what you would do.
-5. Do not ask what to do next.
-6. Do not explain your plan, just plan the sequence to complete the task given to you and execute respective functions sequentially one by one.
-
-Speed & Duration Tips:
-- Quick movements: 0.2-0.5 seconds duration
-- Normal movements: 1-2 seconds duration
-- Long movements: 2-5 seconds duration
-- Turning: Usually 0.3-0.8 seconds for 90° turns
-- Speed: slow=30%, normal=50%, fast=80%
-
+1. Only call the function present in available functions list.
+2. EXECUTE ONLY ONE MOVEMENT AT A TIME. Wait for currently running movement to finish before starting the next movement.
+3. Do not process any tool call in parallel. Always process tool calls one after the other.
 """,
             )
             

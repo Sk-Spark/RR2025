@@ -121,10 +121,19 @@ class MovementController:
             return False
     
     def stop_all_motors(self) -> bool:
-        """Stop all motors and cancel any ongoing movement"""
+        """Stop all motors - does not cancel current movement task if called from within it"""
         try:
-            # Cancel any ongoing movement task
-            if self._current_movement_task and not self._current_movement_task.done():
+            # Only cancel movement task if we're not being called from within the task itself
+            # (This prevents self-cancellation when movement completes normally)
+            current_task = None
+            try:
+                current_task = asyncio.current_task()
+            except RuntimeError:
+                pass  # No event loop running
+            
+            if (self._current_movement_task and 
+                not self._current_movement_task.done() and 
+                current_task != self._current_movement_task):
                 self._current_movement_task.cancel()
             
             success = True
@@ -269,7 +278,7 @@ class MovementController:
             bool: Success status
         """
         try:
-            # Cancel any previous movement
+            # Cancel any previous movement only if it's still running
             if self._current_movement_task and not self._current_movement_task.done():
                 self._current_movement_task.cancel()
                 try:
@@ -283,11 +292,12 @@ class MovementController:
                 self._movement_with_timeout(self._execute_forward, speed, duration)
             )
             
+            # Await the result without additional cancellation handling
             result = await self._current_movement_task
             return result
             
         except asyncio.CancelledError:
-            logger.info("Movement cancelled")
+            logger.info("Forward movement cancelled externally")
             self.stop_all_motors()
             return False
         except Exception as e:

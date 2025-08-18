@@ -13,8 +13,8 @@ AGENT_ID = "rpi5_agent"                    # Change this to your desired agent I
 LED_PIN = 18                               # GPIO pin for LED control
 
 # AI Configuration
-OLLAMA_MODEL = "llama3.2:1b"               # Ollama model to use
-OLLAMA_BASE_URL = "http://localhost:11434" # Ollama server URL
+OLLAMA_MODEL = "llama3.2:3b"               # Ollama model to use
+OLLAMA_BASE_URL = "http://192.168.137.1:11434" # Ollama server URL
 
 # Logging
 LOG_LEVEL = "INFO"                         # DEBUG, INFO, WARNING, ERROR

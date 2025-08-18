@@ -37,8 +37,10 @@ class MovementControlPlugin:
             success = await self.movement_controller.move_forward(speed, duration=duration)
             
             if success:
+                logger.info("Front movement completed.")
                 return f"Robot moved forward at {speed}% speed for {duration} seconds and stopped automatically"
             else:
+                logger.warning("Front movement ERROR.")
                 return "Failed to move robot forward"
         except Exception as e:
             logger.error(f"Error in move_forward: {e}")
