@@ -94,7 +94,8 @@ class OllamaBotAgent:
                 - CALL_FUNCTION:get_movement_status"""
             
             # Create the prompt with template variable
-            prompt_template = f"""You are a robot control assistant. You are responsible for using the available functions to complete the task provided by user.
+            prompt_template = f"""You are a robot control assistant. 
+            You are responsible for using the available functions to complete the task provided by user.
 
             Available LED Commands:
             - turn_led_on: Turn the LED on
