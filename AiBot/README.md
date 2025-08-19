@@ -11,7 +11,8 @@ AiBot is an advanced robotics control system that combines artificial intelligen
 - **🤖 Natural Language Processing**: Uses Ollama LLM (llama3.2:1b) for understanding voice/text commands
 - **💡 LED Control**: GPIO-based LED control with simulation mode support
 - **🚗 Movement Control**: PCA9685 PWM driver for precise motor control with mecanum wheel support
-- **🛡️ Safety Features**: 1-second auto-stop mechanism for all movements
+- **� Camera Control**: SG90 servo-based pan-tilt camera control with smooth movements and tracking
+- **�🛡️ Safety Features**: 1-second auto-stop mechanism for all movements
 - **🌐 Dual Operation Modes**: Interactive terminal mode and WebSocket orchestrator mode
 - **🔌 Modular Architecture**: Plugin-based system using Semantic Kernel for easy extensibility
 - **🔄 WebSocket Communication**: Real-time bidirectional communication with orchestrator services
@@ -36,10 +37,12 @@ AiBot/
 │   ├── hardware/                  # Hardware controllers
 │   │   ├── led_controller.py      # GPIO LED control
 │   │   ├── movement_controller.py # Motor movement control
+│   │   ├── camera_controller.py   # Camera pan-tilt control
 │   │   └── pca9685_controller.py  # PWM driver interface
 │   ├── plugins/                   # Semantic Kernel plugins
 │   │   ├── led_plugin.py          # LED control functions
-│   │   └── movement_plugin.py     # Movement control functions
+│   │   ├── movement_plugin.py     # Movement control functions
+│   │   └── camera_plugin.py       # Camera pan-tilt control functions
 │   └── communication/             # Communication protocols
 │       ├── message_protocol.py    # WebSocket message definitions
 │       └── orchestrator_client.py # WebSocket client implementation
@@ -392,9 +395,10 @@ python main.py -m o
 2. **PCA9685 PWM Driver Board** (16-channel, I2C)
 3. **DC Motors** (4x for mecanum wheels)
 4. **Motor Driver Board** (L298N or similar)
-5. **LED** with appropriate resistor
-6. **External Power Supply** (6-12V for motors)
-7. **Jumper wires** and breadboard
+5. **SG90 Servo Motors** (2x for camera pan-tilt)
+6. **LED** with appropriate resistor
+7. **External Power Supply** (6-12V for motors)
+8. **Jumper wires** and breadboard
 
 ### Wiring Diagram
 
@@ -420,6 +424,21 @@ Front Right       15                 IN1: 14, IN2: 13
 Front Left        4                  IN1: 5,  IN2: 6
 Rear Right        10                 IN1: 12, IN2: 11
 Rear Left         9                  IN1: 7,  IN2: 8
+```
+
+#### Camera Servo Configuration (Default)
+```
+Servo Function    PCA9685 Channel    Range
+Camera Pan        2                  0-180° (horizontal)
+Camera Tilt       3                  0-180° (vertical)
+```
+
+#### Servo Connection
+```
+SG90 Servo     →    PCA9685 & Power
+Signal (Orange) →    PCA9685 Channel 2/3
+VCC (Red)      →    5V Power Supply
+GND (Brown)    →    Common Ground
 ```
 
 ### Mecanum Wheel Movement Patterns
