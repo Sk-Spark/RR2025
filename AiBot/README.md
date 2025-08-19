@@ -25,7 +25,6 @@ AiBot is an advanced robotics control system that combines artificial intelligen
 AiBot/
 ├── 🚀 Entry Points & Control
 │   ├── main.py                    # Command-line entry point with mode selection
-│   ├── run.sh                     # Startup script with environment validation
 │   └── config/aibot_config.py     # User configuration file
 │
 ├── 📦 Source Code (src/aibot/)
@@ -51,7 +50,8 @@ AiBot/
 │
 └── 📚 Documentation & Setup
     ├── requirements.txt           # Python dependencies
-    ├── setup.py                   # Package installation
+    ├── setup.sh                   # Automated setup script
+    ├── activate_venv.sh           # Virtual environment activation
     └── README.md                  # This documentation
 ```
 
@@ -60,7 +60,7 @@ AiBot/
 **Layer 1: Entry Points & Orchestration**
 - `main.py`: Clean command-line interface with mode selection
 - `app.py`: Application lifecycle management and coordination
-- `run.sh`: System validation and startup automation
+- `setup.sh`: Automated environment setup and dependency management
 
 **Layer 2: AI & Intelligence**
 - `ollama_agent.py`: Natural language processing and decision making
@@ -133,25 +133,27 @@ Step 4: Movement executed: Robot turned right at 50% speed for 1 second
    cd RR2025/AiBot
    ```
 
-2. **Set up Python environment**:
+2. **Run the automated setup script**:
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Linux/Mac
-   # or
-   source /home/spark/.venv/bin/activate  # If using global venv
+   ./setup.sh
+   ```
+   
+   The setup script will:
+   - ✅ Check Python 3.8+ installation
+   - ✅ Create a virtual environment (`venv/`)
+   - ✅ Install all required dependencies from `requirements.txt`
+   - ✅ Optionally install development dependencies (pytest, black, flake8, mypy)
+   - ✅ Install the AiBot package in development mode
+   - ✅ Create an activation script (`activate_venv.sh`)
+
+3. **Activate the virtual environment** (after setup):
+   ```bash
+   source ./activate_venv.sh
+   # OR
+   source venv/bin/activate
    ```
 
-3. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Install in development mode**:
-   ```bash
-   pip install -e .
-   ```
-
-5. **Set up Ollama** (if not already installed):
+4. **Set up Ollama** (if not already installed):
    ```bash
    # Install Ollama
    curl -fsSL https://ollama.com/install.sh | sh
@@ -162,6 +164,57 @@ Step 4: Movement executed: Robot turned right at 50% speed for 1 second
    # Pull the required model
    ollama pull llama3.2:1b
    ```
+
+### Quick Start
+
+After installation, you can immediately start using AiBot:
+
+```bash
+# Activate the virtual environment
+source ./activate_venv.sh
+
+# Run AiBot in interactive mode
+python main.py
+
+# Or run in orchestrator mode
+python main.py -m orchestrator
+```
+
+### Setup Script Features
+
+The `setup.sh` script provides a robust, automated setup process with the following features:
+
+#### 🔧 **Automated Environment Management**
+- **Python Compatibility Check**: Verifies Python 3.8+ is available
+- **Virtual Environment**: Creates and manages isolated Python environment
+- **Dependency Installation**: Automatically installs all required packages
+- **Package Installation**: Installs AiBot in development mode for easy testing
+
+#### 🎨 **User-Friendly Experience**
+- **Colored Output**: Clear status messages with color-coded feedback
+- **Interactive Prompts**: Optional installation of development dependencies
+- **Error Handling**: Graceful failure handling with helpful error messages
+- **Progress Indicators**: Real-time feedback during installation process
+
+#### 🛠️ **Development Support**
+- **Development Dependencies**: Optional installation of testing and code quality tools
+- **Activation Script**: Creates `activate_venv.sh` for easy environment activation
+- **Existing Environment Detection**: Smart handling of existing virtual environments
+
+#### 📝 **Usage Examples**
+```bash
+# First-time setup
+./setup.sh
+
+# Re-run setup (will prompt to recreate environment)
+./setup.sh
+
+# Quick environment activation anytime
+source ./activate_venv.sh
+
+# Deactivate when done
+deactivate
+```
 
 ### Configuration
 
@@ -382,18 +435,51 @@ Strafe Right: FR+RL forward, FL+RR backward
 
 ## 🧪 Testing & Validation
 
-### Run Tests
+### Hardware Tests (Raspberry Pi 5)
+
+AiBot includes comprehensive hardware testing scripts for the Raspberry Pi 5:
+
+#### Quick Movement Test
+```bash
+# Quick test to verify basic movement functionality
+python tests/quick_movement_test.py
+```
+
+#### Comprehensive Hardware Tests
+```bash
+# Run all hardware tests for movement controller
+python tests/test_movement_hardware.py
+
+# Run complete hardware test suite
+python tests/run_hardware_tests.py
+```
+
+#### Dependency Check
+```bash
+# Verify all required libraries are installed and working
+python tests/check_dependencies.py
+```
+
+#### Test Features
+- ⚠️  **Safety First**: All tests require user confirmation before moving hardware
+- 🔧 **Real Hardware**: Tests actual PCA9685 and motor control (no mocking)
+- 📊 **Comprehensive Coverage**: Tests individual motors, movement patterns, and error handling
+- 🚫 **Emergency Stop**: Tests emergency stop functionality
+- 📝 **Detailed Logging**: Complete test logs saved to `/tmp/movement_test.log`
+- ✅ **Dependency Validation**: Ensures all required libraries are properly installed
+
+### Unit Tests (Development)
 
 ```bash
-# Run all tests
+# Run all unit tests (includes mocked tests)
 python -m pytest tests/
 
 # Run specific test categories
 python -m pytest tests/unit/
 python -m pytest tests/integration/
 
-# Run hardware diagnostics
-python tests/hardware_diagnostic.py
+# Run tests with coverage
+python -m pytest tests/ --cov=src/aibot
 ```
 
 ### Test Coverage
